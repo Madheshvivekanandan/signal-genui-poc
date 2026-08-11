@@ -1,0 +1,159 @@
+/**
+ * POC-only styles.
+ *
+ * Everything the design system ships lives in signal.css, which is vendored and
+ * must stay diffable against a newer export. This file holds only what the DS does
+ * not define and this demo needs: the numbered section badge, the streaming hint,
+ * the measurement readout, and a screen-reader utility.
+ *
+ * If something here starts looking like a real product need rather than demo
+ * scaffolding, it belongs in the design system, not in this file.
+ */
+
+/* Loaded after signal.css, so these win on equal specificity. */
+
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+/* The numbered badge in each accordion head. The mock shows a filled navy
+   circle; the DS has no class for it. */
+.section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--deep);
+  color: var(--text-on-dark);
+  font-size: 15px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* The molecules in a section body. DS §3.2's specimen stacks bands at 14px. */
+.molecule-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Space between the generated body and the CTA below it. */
+.molecule-stack + .section-cta,
+.molecule-stack + .stream-hint {
+  margin-top: var(--s-5);
+}
+
+/* The mock right-aligns the section CTA directly in the accordion body. The DS's
+   `.cta-card` is a full surface with §7 padding, which is the wrong container
+   here — it draws a pale box the mock does not have. */
+.section-cta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.stream-hint {
+  font-size: 15px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Molecules attached to a review-pane answer sit on the dark surface, where the
+   band's white tint would be too bright at DS §3.2's 40%. */
+.pane-molecules {
+  margin-top: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.pane-molecules .callout,
+.pane-molecules .intel-card {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-on-dark);
+  font-size: 15px;
+}
+.pane-molecules .intel-label,
+.pane-molecules .intel-source {
+  color: var(--text-on-dark-sub);
+}
+.pane-molecules .intel-body {
+  color: var(--text-on-dark);
+}
+
+.card-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: none;
+  border: 0;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-on-dark-sub);
+  cursor: pointer;
+}
+.card-close:hover {
+  color: var(--text-on-dark);
+}
+
+/* The measurement readout. Deliberately plain — it is instrumentation, not
+   product, and it should not read as part of the design. */
+.timings {
+  padding: var(--s-4) var(--s-5);
+  background: rgba(255, 255, 255, 0.40);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-inner);
+}
+.timings dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  margin: 0;
+}
+.timings dt {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.timings dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.timings-error {
+  margin-top: var(--s-3);
+  font-size: 15px;
+  color: var(--text-sub);
+}
+
+/* Visually hidden but announced. The inspect affordance and the streaming
+   arrival are both purely visual otherwise. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* DS §4.3 anchors the pane with a sticky top; the two-column grid needs a gap
+   the DS sets on .layout-two-col only when active. */
+.layout-two-col {
+  display: grid;
+  gap: var(--s-5);
+  align-items: start;
+}
