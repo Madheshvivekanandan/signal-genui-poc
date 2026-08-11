@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signal · RFP Overview</title>
+    <!-- Empty data URI: the POC ships no icon asset, and without this the browser
+         requests /favicon.ico on every load and logs a 404. -->
+    <link rel="icon" href="data:," />
+    <!-- Urbanist is the design system's typeface (DS §1.2). Without it the page
+         falls back to the system sans and the type scale reads noticeably wrong. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
