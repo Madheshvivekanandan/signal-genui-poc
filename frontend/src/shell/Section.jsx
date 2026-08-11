@@ -1,11 +1,16 @@
-import Molecule from '../molecules/registry.jsx';
+import { A2uiSurface } from '@a2ui/react/v0_9';
 
 /**
  * DS §4.1 — one accordion section.
  *
  * The shell is fixed: the numbered head, the signal count, the toggle, the body
- * surface, the CTA. Only `molecules` is generated, and it is rendered through the
- * registry, so this component never knows what a callout or a score row is.
+ * surface, the CTA. Only the body is generated, and it is an A2UI surface — so
+ * this component never knows what a callout or a score row is, and there is no
+ * longer any code of ours between a message and the DOM.
+ *
+ * `A2uiSurface` renders the surface's `root` component with no wrapper of its
+ * own, so the catalog's `MoleculeStack` lands exactly where the hand-written
+ * `.molecule-stack` div used to be.
  *
  * Three states are distinct on purpose — streaming, empty, and failed are not the
  * same thing, and collapsing them is how a demo ends up showing a spinner over a
@@ -15,12 +20,12 @@ export default function Section({
   index,
   title,
   summary,
-  molecules,
+  surface,
+  moleculeCount,
   signalCount,
   isStreaming,
   isLocked,
   cta,
-  onInspect,
 }) {
   if (isLocked) {
     return (
@@ -62,21 +67,10 @@ export default function Section({
         <div role="status" aria-live="polite" className="sr-only">
           {isStreaming
             ? `${title} is being generated`
-            : `${title} ready, ${molecules.length} components`}
+            : `${title} ready, ${moleculeCount} components`}
         </div>
 
-        <div className="molecule-stack">
-          {molecules.map((molecule, position) => (
-            <Molecule
-              // Position is the identity here: the stream appends in order and
-              // never reorders or filters, and the authoritative pass replaces
-              // the whole list at once.
-              key={position}
-              molecule={molecule}
-              onInspect={onInspect}
-            />
-          ))}
-        </div>
+        {surface ? <A2uiSurface surface={surface} /> : null}
 
         {isStreaming ? (
           <div className="stream-hint">Composing this section…</div>

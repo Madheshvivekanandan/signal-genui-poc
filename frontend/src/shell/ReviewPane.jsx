@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Molecule from '../molecules/registry.jsx';
+import { A2uiSurface } from '@a2ui/react/v0_9';
 
 /**
  * DS §4.3/§4.4 — the inspect sidebar and its feedback loop.
@@ -9,11 +9,13 @@ import Molecule from '../molecules/registry.jsx';
  * top is what makes that scope legible — you are asking about *this*, and the
  * agent is answering about *this*.
  *
- * The reply can carry molecules of its own, rendered through the same registry as
- * the section, so an answer about a source arrives as a real intel card rather than
- * a paragraph describing one.
+ * A reply can carry molecules of its own. They arrive as their own A2UI surface —
+ * one per answer, so a second question cannot overwrite the intel card the first
+ * one produced — drawn against the same catalog as the section. That is why this
+ * takes the whole `surfaces` map rather than a list of molecules: the turn holds
+ * an id, and the renderer owns the content.
  */
-export default function ReviewPane({ subject, turns, isThinking, onAsk, onClose }) {
+export default function ReviewPane({ subject, turns, surfaces, isThinking, onAsk, onClose }) {
   const [draft, setDraft] = useState('');
 
   const submit = (event) => {
@@ -52,25 +54,29 @@ export default function ReviewPane({ subject, turns, isThinking, onAsk, onClose 
             </div>
           ) : null}
 
-          {turns.map((turn, index) => (
-            <div className="conv-section" key={index}>
-              <span className="conv-label">{turn.role === 'user' ? 'You' : 'Signal Review'}</span>
-              {turn.role === 'user' ? (
-                <div className="conv-user">{turn.content}</div>
-              ) : (
-                <>
-                  <div className="conv-ai">{turn.content}</div>
-                  {turn.molecules?.length ? (
-                    <div className="pane-molecules">
-                      {turn.molecules.map((molecule, position) => (
-                        <Molecule key={position} molecule={molecule} />
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ))}
+          {turns.map((turn, index) => {
+            // Null until the surface exists, and null again once the pane closes
+            // and deletes it — an answer whose surface is gone still shows its prose.
+            const attached = turn.surfaceId ? surfaces?.get(turn.surfaceId) : null;
+
+            return (
+              <div className="conv-section" key={index}>
+                <span className="conv-label">{turn.role === 'user' ? 'You' : 'Signal Review'}</span>
+                {turn.role === 'user' ? (
+                  <div className="conv-user">{turn.content}</div>
+                ) : (
+                  <>
+                    <div className="conv-ai">{turn.content}</div>
+                    {attached ? (
+                      <div className="pane-molecules">
+                        <A2uiSurface surface={attached} />
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            );
+          })}
 
           <div role="status" aria-live="polite">
             {isThinking ? <div className="conv-confirm">Reading the document…</div> : null}

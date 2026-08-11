@@ -4,6 +4,20 @@
  * Server-sent events are read over `fetch` rather than with `EventSource`,
  * because `EventSource` is GET-only and the inspect endpoint takes a POST body.
  * One parser for both keeps the two paths honest with each other.
+ *
+ * Three channels share the connection, told apart by the SSE `event:` name:
+ *
+ *   a2ui   a real A2UI v0.9 message, handed to the `MessageProcessor` verbatim.
+ *          This module does not inspect it — the protocol owns its own shape.
+ *   meta   this app's chrome: section subtitle, signal count, timings. Not A2UI,
+ *          and deliberately not modelled as components.
+ *   answer the review pane's prose, plus the id of the surface carrying any
+ *          molecules the answer attached.
+ *
+ * A2UI is transport-agnostic — its own MIME type is `application/a2ui+json`
+ * carrying newline-delimited messages. SSE carries the same objects one per
+ * frame, which a browser reads without a custom protocol, so that is what the
+ * backend speaks.
  */
 
 const SSE_DELIMITER = '\n\n';
@@ -78,7 +92,7 @@ async function readEvents(response, onEvent, signal) {
   }
 }
 
-/** Stream the RFP Overview section's molecules as the agent decides them. */
+/** Stream the RFP Overview section as A2UI messages, as the agent decides them. */
 export async function streamOverview(onEvent, signal) {
   const response = await fetch('/api/sections/rfp-overview', {
     headers: { Accept: 'text/event-stream' },

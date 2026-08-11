@@ -11,7 +11,10 @@
  * two is what streaming actually buys — stated, not asserted.
  */
 export default function Timings({ timings, moleculeCount }) {
-  if (!timings) return null;
+  // `meta` frames now also carry running counts during the stream, so presence
+  // alone no longer means the section finished. The completed measurement is
+  // what this readout is for, and `total_ms` is what marks it.
+  if (!timings || timings.total_ms == null) return null;
 
   const firstPaint = timings.first_molecule_ms;
   const total = timings.total_ms;

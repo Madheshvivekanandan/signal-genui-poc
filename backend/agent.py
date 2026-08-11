@@ -1,19 +1,22 @@
-"""The RFP Overview agent: a document in, a stream of molecules out.
+"""The RFP Overview agent: a document in, a stream of A2UI messages out.
 
 The generation is streamed twice over, which is the whole reason this feels like
 an interface building itself rather than a spinner followed by a page:
 
 * **Optimistically**, from the model's partially-parsed JSON. The moment one
-  molecule is provably finished it is emitted, so the metric grid is on screen
-  while the model is still writing the third callout.
+  molecule is provably finished it is compiled to A2UI and pushed, so the metric
+  grid is on screen while the model is still writing the third callout.
 * **Authoritatively**, once the stream closes. The completed object is validated
-  and sanitised, then the whole section is re-sent as a replace. A molecule the
+  and sanitised, then the whole surface is re-sent as a replace. A molecule the
   optimistic pass got wrong or skipped is corrected before the user can click it.
 
 The model chooses which molecule family to use, how many instances, the content,
 and the `inspect`/`signal` capability flags. It does not choose markup, classes,
-colours, or the page layout -- the design system owns those, and the frontend
-registry is the only place a molecule type becomes DOM.
+colours, or the page layout -- the design system owns those.
+
+This module never emits a molecule to the client. It plans in the typed
+molecules of `schemas.py` and hands them to `a2ui.py`, which is the only thing
+that speaks to the browser. The wire format is A2UI v0.9.
 """
 
 from __future__ import annotations
@@ -22,10 +25,12 @@ import logging
 import os
 import time
 from typing import Any, Generator, Iterator, Literal, NamedTuple
+from uuid import uuid4
 
 from openai import OpenAI
 from pydantic import TypeAdapter, ValidationError
 
+import a2ui
 import schemas
 from rfp_document import rfp_for_prompt
 from schemas import ErrorCode, InspectAnswer, Molecule, SectionPlan, Turn
@@ -125,9 +130,22 @@ THE RFP
 
 
 class Event(NamedTuple):
-    """One thing to push down the SSE connection."""
+    """One thing to push down the SSE connection.
 
-    kind: Literal["molecule", "section", "answer", "meta"]
+    Three channels, and the split is deliberate. `a2ui` frames are real protocol
+    messages and go straight to the client's `MessageProcessor` untouched.
+    `meta` and `answer` are this application's own chrome -- the section
+    subtitle, the signal count, the timings readout, the review pane's prose --
+    which are not components and have no business inside a UI protocol.
+
+    `plan` is the third: the model's structured output, sent verbatim so the
+    protocol inspector can show what the agent returned next to what A2UI made
+    of it. It is diagnostic only. **Nothing renders from it** -- the UI is drawn
+    entirely from the `a2ui` channel, and that separation is the point of having
+    the inspector at all.
+    """
+
+    kind: Literal["a2ui", "answer", "meta", "plan"]
     payload: dict
 
 
@@ -224,8 +242,22 @@ def _parse_partial(raw: Any) -> Molecule | None:
         return None
 
 
+def _counts(molecules: list[Molecule]) -> dict[str, int]:
+    """Running totals for the section head and the timings readout.
+
+    The client cannot derive these itself any more: the molecules live in the
+    A2UI surface's data model, which is owned by the renderer rather than by
+    React state. Counting here keeps the chrome fed without asking the page to
+    reach into the protocol's internals.
+    """
+    return {
+        "molecule_count": len(molecules),
+        "signal_count": sum(1 for molecule in molecules if molecule.signal),
+    }
+
+
 def _stream_section(clock: Clock) -> Generator[Event, None, SectionPlan]:
-    """Stream the model, emitting molecules optimistically; return the whole plan.
+    """Stream the model, pushing A2UI updates optimistically; return the plan.
 
     Returns:
         The completed, validated plan, for the caller's authoritative pass.
@@ -233,7 +265,7 @@ def _stream_section(clock: Clock) -> Generator[Event, None, SectionPlan]:
     Raises:
         ValueError: If the model refused, or returned nothing parseable.
     """
-    emitted = 0
+    optimistic: list[Molecule] = []
 
     with get_client().beta.chat.completions.stream(
         model=MODEL,
@@ -251,19 +283,15 @@ def _stream_section(clock: Clock) -> Generator[Event, None, SectionPlan]:
 
             # A molecule is only provably finished once the next one has started,
             # so the last one in the snapshot is always left to the caller.
-            for index in range(emitted, len(raw) - 1):
+            for index in range(len(optimistic), len(raw) - 1):
                 molecule = _parse_partial(raw[index])
                 if molecule is None:
                     break
-                emitted = index + 1
-                yield Event(
-                    "molecule",
-                    {
-                        "index": index,
-                        "molecule": molecule.model_dump(),
-                        "at_ms": clock.mark_molecule(),
-                    },
-                )
+                optimistic.append(molecule)
+                clock.mark_molecule()
+                for message in a2ui.append_molecule(a2ui.SECTION_SURFACE_ID, optimistic):
+                    yield Event("a2ui", message)
+                yield Event("meta", _counts(optimistic))
 
         completion = stream.get_final_completion()
 
@@ -319,33 +347,42 @@ FALLBACK_COPY: dict[ErrorCode, tuple[str, str]] = {
 def _fallback(error: ErrorCode, clock: Clock) -> Iterator[Event]:
     """A renderable stand-in, so no failure leaves the section empty.
 
-    The fallback is itself a molecule -- a risk-toned callout -- rather than a
-    special-cased error box. If the renderer can draw the failure state, the
-    renderer is the only thing that ever draws.
+    The fallback is itself a molecule -- a risk-toned callout, compiled through
+    the same A2UI path as everything else -- rather than a special-cased error
+    shape. If the renderer can draw the failure state, the renderer is the only
+    thing that ever draws.
+
+    It replaces rather than creates: `run_overview` opens the surface before it
+    can fail, so by the time this runs the surface always exists, and a second
+    `createSurface` for the same id is not something to make the client reason
+    about.
     """
     lead, body = FALLBACK_COPY[error]
     notice = schemas.Callout(tone="risk", lead=lead, body=body)
-    yield Event(
-        "section",
-        {
-            "summary": "This section could not be generated.",
-            "molecules": [notice.model_dump()],
-        },
-    )
+    for message in a2ui.replace_surface(a2ui.SECTION_SURFACE_ID, [notice]):
+        yield Event("a2ui", message)
     yield Event(
         "meta",
         {
             "ok": False,
             "error": error,
+            "summary": "This section could not be generated.",
             "total_ms": clock.elapsed_ms(),
             "first_molecule_ms": clock.first_molecule_ms,
+            **_counts([notice]),
         },
     )
 
 
 def run_overview() -> Iterator[Event]:
-    """Stream the RFP Overview section. Never raises: every path yields a section."""
+    """Stream the RFP Overview section. Never raises: every path yields a surface."""
     clock = Clock()
+
+    # Opened before anything that can fail, so every path below -- success,
+    # refusal, missing key, dead network -- has a surface to write into and only
+    # ever needs to replace its contents.
+    for message in a2ui.open_surface(a2ui.SECTION_SURFACE_ID):
+        yield Event("a2ui", message)
 
     if not os.getenv("OPENAI_API_KEY"):
         yield from _fallback("missing_api_key", clock)
@@ -362,27 +399,38 @@ def run_overview() -> Iterator[Event]:
         yield from _fallback("upstream_error", clock)
         return
 
+    # The model's own output, before this module touches it. Sent for the
+    # inspector, and taken before `_usable` on purpose: comparing `returned`
+    # against `rendered` is how a dropped molecule becomes visible in a demo
+    # rather than a silent absence.
+    yield Event(
+        "plan",
+        {
+            "model": MODEL,
+            "summary": plan.summary,
+            "molecules": [molecule.model_dump(mode="json") for molecule in plan.molecules],
+        },
+    )
+
     final = _usable(plan.molecules)
     if not final:
         yield from _fallback("unusable_molecules", clock)
         return
 
-    yield Event(
-        "section",
-        {
-            "summary": plan.summary,
-            "molecules": [molecule.model_dump() for molecule in final],
-        },
-    )
+    # The authoritative pass. Replace-wins is load-bearing: this overwrites
+    # anything the optimistic pass parsed out of half-written JSON.
+    for message in a2ui.replace_surface(a2ui.SECTION_SURFACE_ID, final):
+        yield Event("a2ui", message)
+
     yield Event(
         "meta",
         {
             "ok": True,
             "error": None,
+            "summary": plan.summary,
             "total_ms": clock.elapsed_ms(),
             "first_molecule_ms": clock.first_molecule_ms,
-            "molecule_count": len(final),
-            "signal_count": sum(1 for molecule in final if molecule.signal),
+            **_counts(final),
         },
     )
 
@@ -397,13 +445,14 @@ def run_inspect(question: str, subject: str, history: list[Turn]) -> Iterator[Ev
         history: Prior turns in this review conversation.
 
     Yields:
-        One `answer` event, then `meta`. Never raises.
+        A2UI frames for any attached molecules, then one `answer` event, then
+        `meta`. Never raises.
     """
     clock = Clock()
 
     if not os.getenv("OPENAI_API_KEY"):
         _, body = FALLBACK_COPY["missing_api_key"]
-        yield Event("answer", {"answer": body, "molecules": []})
+        yield Event("answer", {"answer": body, "surface_id": None})
         yield Event(
             "meta",
             {"ok": False, "error": "missing_api_key", "total_ms": clock.elapsed_ms()},
@@ -429,18 +478,21 @@ def run_inspect(question: str, subject: str, history: list[Turn]) -> Iterator[Ev
     except Exception:  # network, auth, rate limit, refusal, anything upstream
         logger.exception("inspect answer failed")
         _, body = FALLBACK_COPY["upstream_error"]
-        yield Event("answer", {"answer": body, "molecules": []})
+        yield Event("answer", {"answer": body, "surface_id": None})
         yield Event(
             "meta",
             {"ok": False, "error": "upstream_error", "total_ms": clock.elapsed_ms()},
         )
         return
 
-    yield Event(
-        "answer",
-        {
-            "answer": parsed.answer,
-            "molecules": [molecule.model_dump() for molecule in _usable(parsed.molecules)],
-        },
-    )
+    # Attached molecules go on their own surface, sent before the answer that
+    # references it, so the pane never renders a turn pointing at a surface the
+    # processor has not seen yet.
+    attached = _usable(parsed.molecules)
+    surface_id = f"{a2ui.INSPECT_SURFACE_PREFIX}{uuid4().hex[:8]}" if attached else None
+    if surface_id:
+        for message in a2ui.full_surface(surface_id, attached):
+            yield Event("a2ui", message)
+
+    yield Event("answer", {"answer": parsed.answer, "surface_id": surface_id})
     yield Event("meta", {"ok": True, "error": None, "total_ms": clock.elapsed_ms()})

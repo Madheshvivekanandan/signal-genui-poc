@@ -2,7 +2,8 @@
 
 Thin by design. A route validates its input, calls one agent function, and frames
 whatever that yields as server-sent events. All the judgement lives in `agent`,
-all the vocabulary in `schemas`, and all the markup in the frontend registry.
+all the vocabulary in `schemas`, the wire format in `a2ui`, and all the markup in
+the frontend's A2UI catalog.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+import a2ui
 import agent
 import rfp_document
 from schemas import Turn
@@ -92,8 +94,19 @@ STREAM_HEADERS = {
 
 @app.get("/api/health", summary="Liveness probe.")
 def health() -> dict[str, object]:
-    """Report liveness and whether a model key is configured."""
-    return {"ok": True, "model": agent.MODEL, "has_api_key": bool(os.getenv("OPENAI_API_KEY"))}
+    """Report liveness, the model, and the UI protocol this build speaks.
+
+    The protocol and catalog are here because they are the two things a client
+    has to agree with the server about. A browser holding a stale catalog is
+    otherwise indistinguishable from an agent producing nothing.
+    """
+    return {
+        "ok": True,
+        "model": agent.MODEL,
+        "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
+        "protocol": a2ui.VERSION,
+        "catalog_id": a2ui.CATALOG_ID,
+    }
 
 
 @app.get("/api/rfp", summary="The RFP header facts.")

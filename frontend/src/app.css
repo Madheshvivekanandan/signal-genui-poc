@@ -136,6 +136,226 @@
   color: var(--text-sub);
 }
 
+/* ── The protocol inspector ────────────────────────────────────────────────
+   Instrumentation, like .timings, and styled to read as instrumentation: a dark
+   console against the page's glass, deliberately not part of the design. Sized
+   for a projector rather than for a dense dashboard, because its only job is to
+   be readable while someone talks over it. */
+.inspector {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-inner);
+  background: rgba(255, 255, 255, 0.40);
+  overflow: hidden;
+}
+
+.insp-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+.insp-toggle:hover .insp-counts {
+  color: var(--text);
+}
+.insp-counts {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: 0 var(--s-5) var(--s-5);
+}
+
+/* `min-width: 0` is load-bearing. A grid/flex item defaults to `min-width: auto`,
+   i.e. min-content, and the JSON pane's `white-space: pre` makes that the width of
+   its longest line — which blows the track out past the container and pushes the
+   next stage out of sight behind `.inspector`'s `overflow: hidden`. With this, the
+   track can shrink and each pane scrolls internally instead. */
+.insp-stage {
+  min-width: 0;
+}
+
+.insp-stage h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--s-3);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.insp-stage h4 em {
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.insp-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--deep);
+  color: var(--text-on-dark);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.insp-note {
+  margin: 0 0 var(--s-3);
+  font-size: 14px;
+  color: var(--text-sub);
+}
+.insp-warn {
+  color: var(--alert, #e5687a);
+  font-weight: 600;
+}
+.insp-dim {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Code panes. Dark so JSON reads as data rather than as page content. */
+.insp-json {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  max-height: 440px;
+  overflow: auto;
+  background: var(--deep);
+  color: #d8e4f0;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* The molecule → component mapping. The binding paths are long and must not wrap,
+   so the wrapper scrolls rather than the page — `overflow-x` goes on the wrapper
+   because setting `display: block` on a table to make it scrollable breaks the
+   table's own column layout. */
+.insp-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.insp-map {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.insp-map th {
+  text-align: left;
+  padding: 6px 12px 6px 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(20, 40, 70, 0.14);
+  white-space: nowrap;
+}
+.insp-map td {
+  padding: 8px 12px 8px 0;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(20, 40, 70, 0.08);
+}
+.insp-map code,
+.insp-bind code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.insp-bind {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* The frame timeline. */
+.insp-frames {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.insp-frames > li {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 8px;
+}
+.insp-frame-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.insp-chan {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* The channel split is a design point, so it is the one thing colour-coded:
+   a2ui frames draw the UI, everything else is chrome. */
+.insp-chan-a2ui {
+  background: var(--deep);
+  color: var(--text-on-dark);
+}
+.insp-chan-meta,
+.insp-chan-plan,
+.insp-chan-answer,
+.insp-chan-done {
+  background: rgba(20, 40, 70, 0.10);
+  color: var(--text-sub);
+}
+.insp-kind {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.insp-gist {
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.insp-frames summary {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.insp-frames details[open] summary {
+  margin-bottom: 6px;
+}
+
+/* Two stages side by side once there is room; stacked on a narrow screen. */
+@media (min-width: 1100px) {
+  .insp-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .insp-stage:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Visually hidden but announced. The inspect affordance and the streaming
    arrival are both purely visual otherwise. */
 .sr-only {
