@@ -134,8 +134,9 @@ class Event(NamedTuple):
 class Clock:
     """Monotonic stopwatch for the timings the demo reports on screen.
 
-    Harman asked twice whether this lags. The honest answer is a number, so every
-    stream carries its own timings rather than leaving it to a feeling.
+    Whether this approach lags was the open question behind the POC. The honest
+    answer is a number, so every stream carries its own timings rather than
+    leaving it to a feeling.
 
     `mark_molecule` is deliberately separate from `elapsed_ms`: time-to-first-
     molecule is the number that matters here, and if merely reading the clock

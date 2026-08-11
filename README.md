@@ -2,9 +2,8 @@
 
 Agent output rendered as Signal design-system molecules, streamed as they are decided.
 
-This is the POC Harman asked for in the 2026-08-11 review: take the Signal design system's
-components, have an agent choose among them based on what it reads, and find out whether it
-lags. It is deliberately **not** a chat interface that draws charts — the model never writes
+The brief: take the Signal design system's components, have an agent choose among them based
+on what it reads, and find out whether it lags. It is deliberately **not** a chat interface that draws charts — the model never writes
 markup, never picks a colour, and never decides the page structure.
 
 ## What is generated and what is not
@@ -77,8 +76,8 @@ docker compose up --build   # http://localhost:3000
 
 ## Measured performance
 
-Harman asked twice whether this lags, so the numbers are on screen (`Timings.jsx`) rather than
-asserted. Observed across runs on `gpt-4o-mini`:
+Whether this lags was the open question behind the POC, so the numbers are on screen
+(`Timings.jsx`) rather than asserted. Observed across runs on `gpt-4o-mini`:
 
 | | |
 |---|---|
@@ -136,13 +135,13 @@ ever draws. No raw exception text, stack, or upstream message is ever shown to t
 
 Things this exercise turned up, beyond "it works":
 
-1. **A2UI was not used, and this use case does not need it.** Harman's scepticism about v0.9
-   was well placed. With a fixed design system, a closed component set and server-owned data,
-   A2UI's binding layer solves a problem this product does not have. The wire format here is
-   plain JSON over SSE, and the seam (`agent` → typed molecules → `registry.jsx`) is thin enough
-   that A2UI or Vercel's json-renderer could be dropped in behind it for a like-for-like
-   comparison against Kunal's track. A versioned in-house contract is the likely production
-   answer.
+1. **A2UI was not used, and this use case does not need it.** Scepticism about v0.9's maturity
+   was well placed — 1.0 is only a release candidate. With a fixed design system, a closed
+   component set and server-owned data, A2UI's binding layer solves a problem this product does
+   not have. The wire format here is plain JSON over SSE, and the seam (`agent` → typed
+   molecules → `registry.jsx`) is thin enough that A2UI or Vercel's json-renderer could be
+   dropped in behind it for a like-for-like comparison. A versioned in-house contract is the
+   likely production answer.
 2. **Two token bugs in the design system export.** `--caution` and `--navy-hover` are declared
    self-referentially (`--caution: var(--caution)`), which is invalid CSS — the declaration is
    dropped, so amber utilization bars and navy button hovers are unstyled in the DS page itself.

@@ -1,8 +1,9 @@
 /**
  * The measurement readout.
  *
- * Harman asked twice whether this approach lags. This puts the answer on screen
- * instead of in a claim: how long until the first molecule was painted, how long
+ * Whether this approach lags was the open question behind the POC. This puts the
+ * answer on screen instead of in a claim: how long until the first molecule was
+ * painted, how long
  * the whole section took, and how many components came back.
  *
  * Time-to-first-molecule is the number that matters. Total time is roughly what a
