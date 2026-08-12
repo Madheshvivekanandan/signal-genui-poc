@@ -38,11 +38,6 @@ import { fetchDocuments, fetchRfpHeader, streamInspect, streamOverview } from '.
  * overwrites the first rather than appending to it.
  */
 
-const LOCKED_SECTIONS = [
-  { index: 2, title: 'Prospect Intelligence' },
-  { index: 3, title: 'Suggested POVs' },
-];
-
 // A bound on the inspector's recording, so a long session cannot grow it without
 // limit. A section run is ~15 frames; an inspect answer adds 3.
 const MAX_FRAMES = 300;
@@ -340,10 +335,6 @@ export default function App() {
             </div>
           }
         />
-
-        {LOCKED_SECTIONS.map((section) => (
-          <Section key={section.index} index={section.index} title={section.title} isLocked />
-        ))}
 
         <Timings timings={meta} moleculeCount={meta?.molecule_count ?? 0} />
 

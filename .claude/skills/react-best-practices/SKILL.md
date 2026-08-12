@@ -177,7 +177,7 @@ sufficient.**
 - **Never define a component inside a component** — it remounts and loses state every parent
   render. `Row` in `ScoreTable.jsx` is module-scope for this reason.
 - `handle*` for internal handlers, `on*` for props. `is/has/can/should` for booleans.
-- `UPPER_SNAKE` module constants — `TONE_CLASSES`, `BAND_CLASSES`, `LOCKED_SECTIONS`. No inline
+- `UPPER_SNAKE` module constants — `TONE_CLASSES`, `BAND_CLASSES`, `MAX_FRAMES`. No inline
   magic numbers.
 - Ternaries for conditional render, never `&&` with a possibly-numeric left side
   (`{count && <X/>}` renders a literal `0`).
