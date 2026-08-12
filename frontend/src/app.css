@@ -136,6 +136,73 @@
   color: var(--text-sub);
 }
 
+/* ── The document picker ───────────────────────────────────────────────────
+   Demo chrome, like .timings and .inspector. Styled as a control strip rather
+   than as a design-system surface, so nobody mistakes it for part of the
+   product. */
+.doc-picker {
+  padding: var(--s-4) var(--s-5);
+  background: rgba(255, 255, 255, 0.40);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-inner);
+}
+
+.doc-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: var(--s-3);
+}
+
+.doc-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  text-align: left;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(20, 40, 70, 0.12);
+  border-radius: 10px;
+  cursor: pointer;
+  /* The selected state is carried by the border and the navy title, not by
+     colour alone -- the DS's own convention and a WCAG requirement. */
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.doc-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.78);
+}
+.doc-option.selected {
+  border-color: var(--deep);
+  background: rgba(255, 255, 255, 0.9);
+}
+.doc-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.doc-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.doc-option.selected .doc-title::after {
+  content: ' ·';
+  color: var(--deep);
+}
+.doc-meta {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.doc-expect {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-sub);
+}
+
 /* ── The protocol inspector ────────────────────────────────────────────────
    Instrumentation, like .timings, and styled to read as instrumentation: a dark
    console against the page's glass, deliberately not part of the design. Sized

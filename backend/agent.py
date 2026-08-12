@@ -32,7 +32,7 @@ from pydantic import TypeAdapter, ValidationError
 
 import a2ui
 import schemas
-from rfp_document import rfp_for_prompt
+from documents import Document
 from schemas import ErrorCode, InspectAnswer, Molecule, SectionPlan, Turn
 
 logger = logging.getLogger("signal.agent")
@@ -41,81 +41,109 @@ MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 _molecule_adapter: TypeAdapter[Molecule] = TypeAdapter(Molecule)
 
-SYSTEM_PROMPT = f"""You are the RFP Overview agent inside Signal, a tool that helps an \
-agency decide whether to bid on an RFP and how. You read the RFP below and return a \
-structured read of it as a small set of design-system molecules.
+# The prompts are built in two halves: a document-agnostic base, assembled once at
+# import, plus the document appended per request. That split is not cosmetic -- the
+# earlier version embedded one RFP and, with it, instructions written about that
+# RFP ("this one does not give you weightings, so you almost certainly should not").
+# Those instructions travelled to every other document and suppressed a whole
+# molecule family. An agent that analyses documents cannot carry opinions about one.
+
+SECTION_PROMPT_BASE = f"""You are the document analyst inside Signal, a tool that helps \
+an agency decide whether to bid on an opportunity and how. You read the document below \
+and return a structured read of it as design-system molecules.
 
 You are not writing prose for a chat window. You are choosing components. The product \
 renders exactly what you return, so the choice of molecule IS the design decision.
 
 WHAT TO PRODUCE
 
-Open with one metric_grid of exactly 4 tiles carrying YOUR VERDICT on the bid. These are \
-judgements, not lookups:
-- a recommendation -- one word, e.g. "Pursue", "Pass", "Pursue with conditions";
-- the money -- your estimated budget range, since the document does not state one;
-- the fit -- High, Medium or Low, against an agency that sells outcomes-led engagements;
-- the clock -- how long we have to respond.
+There is no fixed opening and no house shape. Two documents that establish different \
+things must not produce the same composition -- if your answer would look the same \
+whatever you had just read, you have templated it instead of analysing it.
 
-Do NOT spend metric tiles restating the header. The client name, the sector and the \
-reference number are already on the page above you; a tile that repeats them is a wasted \
-tile.
+1. A metric_grid of 3 or 4 tiles, ONLY IF the document gives you enough to fill one \
+honestly. The tiles are your verdict, not a lookup: the recommendation (one word -- \
+"Pursue", "Pass", "Pursue with conditions"), the money, the fit against an agency that \
+sells outcomes-led engagements, the clock. Use the document's own figures where it states \
+them; where it does not, estimate, say what the estimate derives from, and signal it.
 
-Then a small number of callouts covering what the RFP actually asks for, how the process \
-runs, what the commercial picture is, and what it requires of us. Use a score_table only \
-if the document gives you real criteria to score against; this one does not give you \
-weightings, so you almost certainly should not.
+   OMIT THE GRID ENTIRELY when the document does not support one. A document that states \
+no budget, no timeline and no criteria cannot fill a verdict row from anything but \
+guesswork, and three tiles of guesswork presented as top-line facts is the worst thing \
+you can put on this page. In that case let the callouts carry the whole read. Do NOT \
+spend tiles on the client name, the sector or the reference number -- they are already on \
+the page above you.
+
+2. Callouts, one for each material thing the document establishes -- as many as it earns, \
+and no more. The count follows the document, not a habit: work through the whole of it and \
+cover what is actually there -- what is being asked for; how the process and the timeline \
+run; the commercial position; what it requires of a respondent; who else is already \
+involved. A document with several substantive numbered sections will earn several. A \
+one-page enquiry will earn one or two, most of them risk-toned, because what matters \
+about such a document is what it fails to say.
+
+   Padding a thin document out to look substantial is a failure, and so is compressing a \
+detailed one. Never return only one molecule.
+
+   Give each one a `label` and a `source` when it is traceable to a numbered section. \
+The tone carries the category:
+     context         a fact or a quote drawn from the document.
+     recommendation  what we should do about it. Sparing -- one, maybe two.
+     risk            a gap, an unstated term, or an inference you are not confident in.
+
+3. Add ONE score_table WHENEVER the document states evaluation criteria, weightings, or \
+a scoring scheme. A document that publishes its weightings is asking to be scored, and \
+describing those weightings in a paragraph instead is the wrong component. Use the \
+document's own criteria and weights as its rows, and score each one as you honestly \
+assess our position against it. If the document states no criteria at all, omit this \
+family entirely.
+
+THE SHAPE MUST FOLLOW THE DOCUMENT
+
+A thin enquiry that states almost nothing should come back short and heavily flagged -- \
+that is the correct answer, not a failure. A dense, highly specified document should come \
+back long, with most of its bands sourced. Two different documents must not produce the \
+same shape.
 
 At most {schemas.MAX_MOLECULES} molecules in total. Fewer, denser molecules beat more \
-thin ones.
-
-CHOOSING THE BAND
-
-The callout's tone is the only thing carrying the category, so it has to be right:
-- context: a fact or a quote from the document. Most of your callouts.
-- recommendation: what we should do about it. Sparing -- one, maybe two.
-- risk: a gap, an unstated term, an inference you are not confident in.
+thin ones, and padding to fill the budget is worse than either.
 
 CAPABILITIES -- these are not optional, and a section with none of them is wrong
 
 Every molecule carries `inspect` and `signal`. They are how a partner interrogates your \
 work, so you must set them deliberately rather than leaving them off.
 
-inspect = true on the metric_grid, and on every callout that carries a judgement, an \
-estimate, or a claim traced to a section. In practice that is most of what you produce. \
-Set it false only on a callout that is a flat restatement of the document with nothing to \
-challenge.
+inspect = true on the metric_grid, and on every callout or table that carries a \
+judgement, an estimate, or a claim traced to a section. In practice that is most of what \
+you produce. Set it false only on a flat restatement with nothing to challenge.
 
-signal = true where the document genuinely leaves you unable to answer and a human has to \
-weigh in: a figure you estimated rather than read, a term the RFP declines to state, a \
-material question it leaves open. Any tile or band whose content you inferred rather than \
-found MUST be signalled -- presenting an estimate as though it were sourced is the one \
-failure that actually costs the user money.
+signal = true where the document genuinely leaves you unable to answer and a human has \
+to weigh in: a figure you estimated rather than read, a term the document declines to \
+state, a material question it leaves open. Any tile or band whose content you inferred \
+rather than found MUST be signalled -- presenting an estimate as though it were sourced \
+is the one failure that actually costs the user money.
 
-One or two signals, never more. A section where everything is flagged has flagged nothing.
+Signal what genuinely warrants it and no more. A section where everything is flagged has \
+flagged nothing; a thin document may honestly warrant several, a complete one none.
 
 DISCIPLINE
 
 - Cite sections as the document numbers them ("§4", "§5(a)"). Never invent a section.
 - Every figure is either stated in the document or clearly marked as your estimate. If \
-you estimate a budget, say what it is derived from and band it as a risk, because the \
-document does not state one.
-- Quote the RFP's own language where it is doing work ("competitive market rates", \
-"commercial growth, not channel reporting"). The partner is going to be quoted back at.
+the document states a budget, use it and do not flag it. If it does not and you estimate \
+one, say what it is derived from and signal it.
+- Quote the document's own language where it is doing work. The partner is going to be \
+quoted back at.
 - Write in the product's voice: short, declarative, no hedging, no "it appears that".
-- Never pad to fill the molecule budget.
-
-THE RFP
-{rfp_for_prompt()}
 """
 
-INSPECT_SYSTEM_PROMPT = f"""You are the Signal Review agent. The user has clicked one \
-datapoint in the RFP Overview and is asking about it -- where it came from, why it is \
+INSPECT_PROMPT_BASE = """You are the Signal Review agent. The user has clicked one \
+datapoint in the analysis and is asking about it -- where it came from, why it is \
 flagged, or whether it is right.
 
-Answer only from the RFP below. Quote the section that settles it. If the document does \
-not settle it, say so plainly and say what would -- do not fill the gap with a plausible \
-guess, because the user is deciding whether to trust the section.
+Answer only from the document below. Quote the section that settles it. If the document \
+does not settle it, say so plainly and say what would -- do not fill the gap with a \
+plausible guess, because the user is deciding whether to trust the section.
 
 You may attach at most two molecules when a component answers better than a sentence: \
 an intel-card callout (tone context, with label and source) to show an attribution, or a \
@@ -123,10 +151,17 @@ metric_grid to lay out figures being compared. Attach nothing when prose is enou
 which is most of the time.
 
 Keep it to a few sentences.
-
-THE RFP
-{rfp_for_prompt()}
 """
+
+
+def section_prompt(document: Document) -> str:
+    """The section agent's system prompt, for one document."""
+    return f"{SECTION_PROMPT_BASE}\nTHE DOCUMENT\n{document.for_prompt()}\n"
+
+
+def inspect_prompt(document: Document) -> str:
+    """The review agent's system prompt, for one document."""
+    return f"{INSPECT_PROMPT_BASE}\nTHE DOCUMENT\n{document.for_prompt()}\n"
 
 
 class Event(NamedTuple):
@@ -256,7 +291,7 @@ def _counts(molecules: list[Molecule]) -> dict[str, int]:
     }
 
 
-def _stream_section(clock: Clock) -> Generator[Event, None, SectionPlan]:
+def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, SectionPlan]:
     """Stream the model, pushing A2UI updates optimistically; return the plan.
 
     Returns:
@@ -269,7 +304,7 @@ def _stream_section(clock: Clock) -> Generator[Event, None, SectionPlan]:
 
     with get_client().beta.chat.completions.stream(
         model=MODEL,
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}],
+        messages=[{"role": "system", "content": section_prompt(document)}],
         response_format=SectionPlan,
         temperature=0.2,
     ) as stream:
@@ -374,8 +409,8 @@ def _fallback(error: ErrorCode, clock: Clock) -> Iterator[Event]:
     )
 
 
-def run_overview() -> Iterator[Event]:
-    """Stream the RFP Overview section. Never raises: every path yields a surface."""
+def run_overview(document: Document) -> Iterator[Event]:
+    """Stream the analysis of one document. Never raises: every path yields a surface."""
     clock = Clock()
 
     # Opened before anything that can fail, so every path below -- success,
@@ -389,7 +424,7 @@ def run_overview() -> Iterator[Event]:
         return
 
     try:
-        plan = yield from _stream_section(clock)
+        plan = yield from _stream_section(document, clock)
     except ValidationError as exc:
         logger.warning("agent output failed validation: %s", exc)
         yield from _fallback("schema_validation_failed", clock)
@@ -435,10 +470,14 @@ def run_overview() -> Iterator[Event]:
     )
 
 
-def run_inspect(question: str, subject: str, history: list[Turn]) -> Iterator[Event]:
+def run_inspect(
+    document: Document, question: str, subject: str, history: list[Turn]
+) -> Iterator[Event]:
     """Answer a review-pane question about one inspected molecule.
 
     Args:
+        document: The document under analysis, so the answer is grounded in the
+            same text the section was drawn from.
         question: What the user typed.
         subject: A short description of the molecule they clicked, so the model
             knows what "this" refers to without the client resending the tree.
@@ -464,7 +503,7 @@ def run_inspect(question: str, subject: str, history: list[Turn]) -> Iterator[Ev
         completion = get_client().beta.chat.completions.parse(
             model=MODEL,
             messages=[
-                {"role": "system", "content": INSPECT_SYSTEM_PROMPT},
+                {"role": "system", "content": inspect_prompt(document)},
                 {"role": "system", "content": f"The user is asking about: {subject}"},
                 *replayed,
                 {"role": "user", "content": question},

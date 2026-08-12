@@ -27,6 +27,7 @@ frontend/src/
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
   shell/
     Header.jsx  Section.jsx  ReviewPane.jsx  Timings.jsx
+    DocumentPicker.jsx     # demo surface: switch document, section re-composes
     ProtocolInspector.jsx  # demo surface: agent JSON → compile → frames. Renders nothing.
   components/
     ErrorBoundary.jsx

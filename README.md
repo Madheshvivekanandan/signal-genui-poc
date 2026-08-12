@@ -121,7 +121,8 @@ docker compose up --build   # http://localhost:3000
 | Method | Path | |
 |---|---|---|
 | GET | `/api/health` | liveness, model, key presence, protocol, catalog id |
-| GET | `/api/rfp` | the static header facts — *not* generated |
+| GET | `/api/documents` | the documents this build can analyse, and the default |
+| GET | `/api/rfp?document=` | the static header facts — *not* generated |
 | GET | `/api/sections/rfp-overview` | SSE: A2UI messages for the section, streamed |
 | POST | `/api/inspect` | SSE: an answer, plus A2UI messages for anything it attaches |
 
@@ -136,6 +137,44 @@ Three SSE channels share both streams, told apart by the `event:` name:
 
 Keeping chrome out of the `a2ui` channel is deliberate. The section subtitle and the timings
 readout are not components and modelling them as such would mean the agent could change them.
+
+## Four documents, four compositions
+
+The POC's claim is that one catalog and one renderer produce different interfaces for
+different documents. One fixed document cannot demonstrate that, so `backend/documents.py`
+carries four, shaped to demand different answers to "which components does this deserve?".
+Pick one from the strip above section 1 and the section re-composes.
+
+| Document | What it states | What the agent composed |
+|---|---|---|
+| **Cedar Wellness** | Rich, but no budget and no weightings | grid + 3 context + **1 coral risk** · 2 signals |
+| **Meridian Health** | Published weightings *and* a real budget | grid + 3 context + **scored table** · 0 signals |
+| **Northwind** | Almost nothing — an RFI, not an RFP | **no grid at all**, risk-led · 3 signals |
+| **Halcyon Bank** | Dense, highly specified, fully costed | grid + 4 context · 0 signals |
+
+Two of these are structurally unmistakable. **Northwind produces no metric grid**, because a
+document stating no budget, no timeline and no criteria cannot fill a verdict row from
+anything but guesswork — the agent decides that, it is not special-cased. **Meridian
+produces a score table** carrying the document's own published weightings, because it is
+the only one that publishes any.
+
+Cedar and Halcyon compose similarly, and that is the honest result rather than a gap: both
+are dense, complete RFPs that state their budget and their deadline, so they earn the same
+components. Say that out loud before switching to Northwind and the difference reads as
+evidence. With three molecule families the space of possible shapes is genuinely
+small — widening it means a fourth family, which the review capped at two or three.
+
+**Run demos on `gpt-4o`, not `gpt-4o-mini`.** Mini intermittently returns a single molecule
+and stops — `finish_reason=stop`, no refusal, roughly one run in four, on more than one
+document. `gpt-4o` did not do it across 8+ runs and is *faster* here (3.4–4.4 s vs
+5–14 s). Set `OPENAI_MODEL=gpt-4o`.
+
+The prompt earns its own note. It was originally written for the Cedar document and carried
+instructions *about* that document — "this one does not give you weightings, so you almost
+certainly should not [use a score_table]" — which travelled to every other document and
+suppressed a whole molecule family. **An agent that analyses documents cannot hold opinions
+about one.** The base prompt is now document-agnostic and the document is appended per
+request.
 
 ## The protocol inspector — for demoing this
 
@@ -205,9 +244,13 @@ Where A2UI does cost something is the bundle:
 real; against a 2.6–8.7 s wait for the first component, it is not what the user is waiting for.
 
 **Caveat: these are one machine, one model, one document, single-digit runs.** They are
-directional, not a benchmark. `gpt-4o-mini` is also the weakest sensible model here — a larger
-model will be slower per token and better at the judgement calls, and that trade has not been
-measured.
+directional, not a benchmark.
+
+The `gpt-4o-mini` numbers above are the original measurement. On `gpt-4o` the section
+completes in **3.4–4.4 s** — *faster*, not slower, which was not the expected result and
+suggests these timings are dominated by something other than per-token cost at this
+document size. It is also the model demos should use, for the reliability reason in
+"Four documents, four compositions".
 
 ## How the streaming works
 
@@ -322,11 +365,16 @@ Things this exercise turned up, beyond "it works":
   model before treating it as a prompt problem.
 - **Only one agent and one section.** Sections 2 and 3 are locked chrome. Nothing here proves
   the pattern across agents with different output shapes — that is the next thing to test.
-- **`score_table` is still rarely chosen**, because this RFP declines to state evaluation
-  weightings, so it has never appeared in a live run. Its A2UI binding path *was* verified
-  directly against `MessageProcessor` — `total` binds to a plain object, which `DynamicValue`
-  has no member for, and it resolves correctly because the binder classifies props rather than
-  validating resolved values. It still has not been seen on screen.
+- ~~`score_table` is never chosen~~ — **fixed.** It renders for Meridian, carrying that
+  document's own published weightings. The cause was never the family: the prompt held a
+  Cedar-specific instruction not to use it. Its binding path was also verified directly
+  against `MessageProcessor` — `total` binds to a plain object, which `DynamicValue` has no
+  member for, and it resolves because the binder classifies props rather than validating
+  resolved values.
+- **Only two of the four documents are structurally unmistakable.** Northwind (no grid) and
+  Meridian (score table) are; Cedar and Halcyon compose alike because they are both dense,
+  complete RFPs. Defensible, but with three families the shape space is small — a fourth
+  family is the real lever, and the review capped it at two or three.
 - **No tests.** The highest-value targets are now `a2ui.py`'s compiler output, the catalog's
   binding resolution, and `stream.js` frame-splitting across chunk boundaries.
 - The wallpaper is a gradient stand-in; the DS export references
@@ -350,7 +398,7 @@ backend/
   a2ui.py           # A2UI v0.9 builders + the molecule -> A2UI compiler — read this second
   agent.py          # streaming, the two passes, prompts, fallbacks
   main.py           # thin routes + SSE framing
-  rfp_document.py   # the input, as a fixture
+  documents.py      # the four input documents, as fixtures
 frontend/src/
   signal.css        # VENDORED design system — do not edit
   app.css           # only what the DS does not define
@@ -360,7 +408,7 @@ frontend/src/
   molecules/        # the DS implementations, unchanged by the A2UI migration
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
   shell/            # static chrome: Header, Section, ReviewPane, Timings
-                    # + ProtocolInspector — the demo surface; renders nothing
+                    # + DocumentPicker, ProtocolInspector — demo surfaces
   lib/              # stream.js (the SSE contract), coerce.js
 ```
 
