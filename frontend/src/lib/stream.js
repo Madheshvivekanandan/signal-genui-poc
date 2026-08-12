@@ -92,35 +92,59 @@ async function readEvents(response, onEvent, signal) {
   }
 }
 
-/** Stream the RFP Overview section as A2UI messages, as the agent decides them. */
-export async function streamOverview(onEvent, signal) {
-  const response = await fetch('/api/sections/rfp-overview', {
-    headers: { Accept: 'text/event-stream' },
-    signal,
-  });
+/** Stream one document's analysis as A2UI messages, as the agent decides them. */
+export async function streamOverview(documentKey, onEvent, signal) {
+  const response = await fetch(
+    `/api/sections/rfp-overview?document=${encodeURIComponent(documentKey)}`,
+    { headers: { Accept: 'text/event-stream' }, signal },
+  );
   await readEvents(response, onEvent, signal);
 }
 
 /** Ask the review agent about one inspected molecule. */
-export async function streamInspect({ question, subject, history }, onEvent, signal) {
+export async function streamInspect(
+  { question, subject, history, document },
+  onEvent,
+  signal,
+) {
   const response = await fetch('/api/inspect', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ question, subject, history }),
+    body: JSON.stringify({ question, subject, history, document }),
     signal,
   });
   await readEvents(response, onEvent, signal);
 }
 
 /**
- * Fetch the static RFP header.
+ * Fetch the documents this build can analyse, and which one is the default.
+ *
+ * Resolves to null on failure. The caller keeps whatever it already had rather
+ * than emptying the picker — losing the list mid-demo would be worse than showing
+ * a stale one.
+ */
+export async function fetchDocuments(signal) {
+  try {
+    const response = await fetch('/api/documents', { signal });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    if (error.name !== 'AbortError') console.error('could not load documents', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch the static header for one document.
  *
  * Resolves to null on any failure: the header is chrome, and a missing one should
  * degrade to the page still rendering its generated section, not to an error screen.
  */
-export async function fetchRfpHeader(signal) {
+export async function fetchRfpHeader(documentKey, signal) {
   try {
-    const response = await fetch('/api/rfp', { signal });
+    const response = await fetch(`/api/rfp?document=${encodeURIComponent(documentKey)}`, {
+      signal,
+    });
     if (!response.ok) return null;
     return await response.json();
   } catch (error) {

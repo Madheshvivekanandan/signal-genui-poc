@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
 
+import DocumentPicker from './shell/DocumentPicker.jsx';
 import Header from './shell/Header.jsx';
 import ProtocolInspector from './shell/ProtocolInspector.jsx';
 import ReviewPane from './shell/ReviewPane.jsx';
@@ -12,7 +13,7 @@ import {
   deleteSurfaceMessage,
   transportFailureMessages,
 } from './a2ui/messages.js';
-import { fetchRfpHeader, streamInspect, streamOverview } from './lib/stream.js';
+import { fetchDocuments, fetchRfpHeader, streamInspect, streamOverview } from './lib/stream.js';
 
 /**
  * The RFP page.
@@ -49,6 +50,12 @@ const MAX_FRAMES = 300;
 export default function App() {
   const [rfp, setRfp] = useState(null);
   const [isStreaming, setIsStreaming] = useState(true);
+
+  // Which document the agent is reading. `null` until the list loads, because the
+  // default lives on the server — duplicating it here would be a second place to
+  // change it.
+  const [documentList, setDocumentList] = useState([]);
+  const [documentKey, setDocumentKey] = useState(null);
 
   // Everything the section head and the timings readout need, merged as `meta`
   // frames arrive. Not A2UI — chrome is not a component.
@@ -111,8 +118,32 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    fetchDocuments(controller.signal).then((payload) => {
+      if (controller.signal.aborted || !payload) return;
+      setDocumentList(payload.documents ?? []);
+      setDocumentKey((current) => current ?? payload.default ?? null);
+    });
+    return () => controller.abort();
+  }, []);
 
-    fetchRfpHeader(controller.signal).then((header) => {
+  useEffect(() => {
+    if (!documentKey) return undefined;
+
+    const controller = new AbortController();
+
+    // Clear the previous document's render before the next one streams in. Without
+    // the delete, the incoming createSurface would land on a surface that still
+    // holds the old components, and anything the new document does not overwrite
+    // would survive into it.
+    if (processor.model.surfacesMap.has(SECTION_SURFACE_ID)) {
+      processor.processMessages([deleteSurfaceMessage(SECTION_SURFACE_ID)]);
+    }
+    setMeta(null);
+    setPlan(null);
+    setFrames([]);
+    setIsStreaming(true);
+
+    fetchRfpHeader(documentKey, controller.signal).then((header) => {
       if (!controller.signal.aborted) setRfp(header);
     });
 
@@ -144,7 +175,7 @@ export default function App() {
       }
     };
 
-    streamOverview(handleEvent, controller.signal)
+    streamOverview(documentKey, handleEvent, controller.signal)
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('overview stream failed', error);
@@ -159,7 +190,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [processor, record]);
+  }, [documentKey, processor, record]);
 
   const openInspection = useCallback((subject) => {
     setInspection({ subject, turns: [] });
@@ -220,7 +251,7 @@ export default function App() {
       const history = turns.map((turn) => ({ role: turn.role, content: turn.content }));
 
       streamInspect(
-        { question, subject, history },
+        { question, subject, history, document: documentKey },
         (name, payload) => {
           if (controller.signal.aborted) return;
           record(name, payload);
@@ -258,7 +289,22 @@ export default function App() {
           if (!controller.signal.aborted) setIsThinking(false);
         });
     },
-    [appendAnswer, inspection, processor, record],
+    [appendAnswer, documentKey, inspection, processor, record],
+  );
+
+  /**
+   * Switch document.
+   *
+   * The open inspection is discarded first: its subject is a datapoint in the
+   * outgoing document, and an answer about it would be grounded in a text the
+   * page is no longer showing.
+   */
+  const selectDocument = useCallback(
+    (key) => {
+      closeInspection();
+      setDocumentKey(key);
+    },
+    [closeInspection],
   );
 
   const sectionSurface = surfaces.get(SECTION_SURFACE_ID) ?? null;
@@ -268,6 +314,13 @@ export default function App() {
     <main className={isPaneOpen ? 'layout-two-col active' : 'layout-two-col'}>
       <div className="left-col">
         <Header rfp={rfp} />
+
+        <DocumentPicker
+          documents={documentList}
+          selected={documentKey}
+          onSelect={selectDocument}
+          isBusy={isStreaming}
+        />
 
         <Section
           index={1}

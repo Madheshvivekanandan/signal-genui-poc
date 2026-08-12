@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import a2ui
 import agent
-import rfp_document
+import documents
 from schemas import Turn
 
 # The app entrypoint is the one place a dotenv load belongs; importing this for
@@ -67,6 +67,11 @@ class InspectRequest(BaseModel):
         description="Short description of the clicked molecule, so 'this' resolves.",
     )
     history: list[Turn] = Field(default_factory=list, max_length=12)
+    document: str = Field(
+        default=documents.DEFAULT_KEY,
+        max_length=64,
+        description="Which document the datapoint was drawn from.",
+    )
 
 
 def _sse(events: Iterator[agent.Event]) -> Iterator[str]:
@@ -109,27 +114,52 @@ def health() -> dict[str, object]:
     }
 
 
-@app.get("/api/rfp", summary="The RFP header facts.")
-def rfp_header() -> dict[str, str]:
-    """Return the static header for the RFP under review.
+@app.get("/api/documents", summary="The documents this build can analyse.")
+def list_documents() -> dict[str, object]:
+    """List the available documents, for the picker.
+
+    `expect` is included deliberately: it is the one-line prediction of what shape
+    each document should produce, so a demo can state the claim before running it
+    rather than describing whatever came back.
+    """
+    return {
+        "default": documents.DEFAULT_KEY,
+        "documents": [
+            {
+                "key": document.key,
+                "title": document.title,
+                "client": document.client,
+                "sector": document.sector,
+                "reference": document.reference,
+                "expect": document.expect,
+            }
+            for document in documents.DOCUMENTS.values()
+        ],
+    }
+
+
+@app.get("/api/rfp", summary="The header facts for one document.")
+def rfp_header(document: str | None = None) -> dict[str, str]:
+    """Return the static header for the document under review.
 
     The page chrome is not generated -- the title, client and reference come from
     the record, not from the model. Keeping this on a separate endpoint makes that
     boundary visible rather than implied.
     """
+    record = documents.get(document)
     return {
-        "title": rfp_document.RFP_TITLE,
-        "client": rfp_document.RFP_CLIENT,
-        "sector": rfp_document.RFP_SECTOR,
-        "reference": rfp_document.RFP_REFERENCE,
+        "title": record.title,
+        "client": record.client,
+        "sector": record.sector,
+        "reference": record.reference,
     }
 
 
-@app.get("/api/sections/rfp-overview", summary="Stream the RFP Overview section.")
-def stream_overview() -> StreamingResponse:
-    """Stream the RFP Overview agent's molecules as they are decided."""
+@app.get("/api/sections/rfp-overview", summary="Stream the analysis of one document.")
+def stream_overview(document: str | None = None) -> StreamingResponse:
+    """Stream the agent's molecules for one document, as they are decided."""
     return StreamingResponse(
-        _sse(agent.run_overview()),
+        _sse(agent.run_overview(documents.get(document))),
         media_type="text/event-stream",
         headers=STREAM_HEADERS,
     )
@@ -139,7 +169,14 @@ def stream_overview() -> StreamingResponse:
 def inspect(request: InspectRequest) -> StreamingResponse:
     """Answer a review-pane question, scoped to the clicked datapoint."""
     return StreamingResponse(
-        _sse(agent.run_inspect(request.question, request.subject, request.history)),
+        _sse(
+            agent.run_inspect(
+                documents.get(request.document),
+                request.question,
+                request.subject,
+                request.history,
+            )
+        ),
         media_type="text/event-stream",
         headers=STREAM_HEADERS,
     )
