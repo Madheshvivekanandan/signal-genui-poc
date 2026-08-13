@@ -8,9 +8,11 @@ import ProtocolChoice from './shell/ProtocolChoice.jsx';
 import ProtocolInspector from './shell/ProtocolInspector.jsx';
 import ReviewPane from './shell/ReviewPane.jsx';
 import Section from './shell/Section.jsx';
+import Walkthrough from './shell/Walkthrough.jsx';
 import { INSPECT_ACTION, signalCatalog } from './a2ui/catalog.jsx';
 import {
   SECTION_SURFACE_ID,
+  WALKTHROUGH_SURFACE_ID,
   deleteSurfaceMessage,
   transportFailureMessages,
 } from './a2ui/messages.js';
@@ -83,8 +85,13 @@ export default function App() {
   // That is the property the demo is meant to show.
   const [frames, setFrames] = useState([]);
   const [plan, setPlan] = useState(null);
+
+  // One molecule of the completed run, followed from the prompt to the pixels.
+  // Diagnostic like `plan`: nothing on the page above is drawn from it.
+  const [trace, setTrace] = useState(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [isChoiceOpen, setIsChoiceOpen] = useState(false);
+  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
   const seqRef = useRef(0);
 
   const record = useCallback((channel, payload) => {
@@ -161,11 +168,14 @@ export default function App() {
     // the delete, the incoming createSurface would land on a surface that still
     // holds the old components, and anything the new document does not overwrite
     // would survive into it.
-    if (processor.model.surfacesMap.has(SECTION_SURFACE_ID)) {
-      processor.processMessages([deleteSurfaceMessage(SECTION_SURFACE_ID)]);
+    for (const id of [SECTION_SURFACE_ID, WALKTHROUGH_SURFACE_ID]) {
+      if (processor.model.surfacesMap.has(id)) {
+        processor.processMessages([deleteSurfaceMessage(id)]);
+      }
     }
     setMeta(null);
     setPlan(null);
+    setTrace(null);
     setFrames([]);
     setIsStreaming(true);
 
@@ -193,6 +203,13 @@ export default function App() {
       // the page above is drawn entirely from the `a2ui` channel.
       if (name === 'plan') {
         setPlan(payload);
+        return;
+      }
+
+      // The walkthrough's trace. Its own surface arrived on the `a2ui` channel
+      // just before this, so the panel has something to draw the moment it opens.
+      if (name === 'trace') {
+        setTrace(payload);
         return;
       }
 
@@ -375,6 +392,15 @@ export default function App() {
           moleculeCount={meta?.molecule_count ?? 0}
           isOpen={isInspectorOpen}
           onToggle={() => setIsInspectorOpen((open) => !open)}
+        />
+
+        {/* The same transformations the inspector shows, rearranged for an
+            audience: one molecule, six stages, in order, ending in real pixels. */}
+        <Walkthrough
+          trace={trace}
+          surfaces={surfaces}
+          isOpen={isWalkthroughOpen}
+          onToggle={() => setIsWalkthroughOpen((open) => !open)}
         />
 
         {/* Last on the page and deliberately separate: this is reference material

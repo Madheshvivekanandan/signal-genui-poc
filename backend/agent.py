@@ -32,6 +32,7 @@ from pydantic import TypeAdapter, ValidationError
 
 import a2ui
 import schemas
+import walkthrough
 from documents import Document
 from schemas import ErrorCode, InspectAnswer, Molecule, SectionPlan, Turn
 
@@ -194,6 +195,10 @@ class Event(NamedTuple):
     subtitle, the signal count, the timings readout, the review pane's prose --
     which are not components and have no business inside a UI protocol.
 
+    `trace` is the fifth, and the same kind of thing as `plan`: one molecule
+    followed from the prompt to the pixels, for the walkthrough panel. Also
+    diagnostic, also renders nothing.
+
     `plan` is the third: the model's structured output, sent verbatim so the
     protocol inspector can show what the agent returned next to what A2UI made
     of it. It is diagnostic only. **Nothing renders from it** -- the UI is drawn
@@ -201,7 +206,7 @@ class Event(NamedTuple):
     the inspector at all.
     """
 
-    kind: Literal["a2ui", "answer", "meta", "plan"]
+    kind: Literal["a2ui", "answer", "meta", "plan", "trace"]
     payload: dict
 
 
@@ -359,16 +364,23 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
     return choice.message.parsed
 
 
-def _usable(molecules: list[Molecule]) -> list[Molecule]:
+def _usable(molecules: list[Molecule]) -> list[tuple[Molecule, Molecule]]:
     """Sanitise a plan's molecules, dropping any that cannot be drawn.
 
     One unusable molecule does not sink the section -- a broken callout next to a
     good metric grid should cost the callout, not the answer.
+
+    Returns:
+        `(returned, drawn)` per surviving molecule, in render order. The pair is
+        kept rather than just the sanitised molecule so the walkthrough can show
+        what the sanitiser changed: once a molecule is dropped the two lists no
+        longer share indices, and matching them back up afterwards would be a
+        guess.
     """
-    usable: list[Molecule] = []
+    usable: list[tuple[Molecule, Molecule]] = []
     for molecule in molecules[: schemas.MAX_MOLECULES]:
         try:
-            usable.append(_sanitize(molecule))
+            usable.append((molecule, _sanitize(molecule)))
         except ValueError as exc:
             logger.warning("dropping unusable molecule: %s", exc)
     return usable
@@ -468,15 +480,34 @@ def run_overview(document: Document) -> Iterator[Event]:
         },
     )
 
-    final = _usable(plan.molecules)
-    if not final:
+    pairs = _usable(plan.molecules)
+    if not pairs:
         yield from _fallback("unusable_molecules", clock)
         return
+    final = [drawn for _, drawn in pairs]
 
     # The authoritative pass. Replace-wins is load-bearing: this overwrites
     # anything the optimistic pass parsed out of half-written JSON.
     for message in a2ui.replace_surface(a2ui.SECTION_SURFACE_ID, final):
         yield Event("a2ui", message)
+
+    # One molecule, followed from the prompt to the pixels, for the walkthrough
+    # panel. Built from this run rather than written out, so it explains what the
+    # system does instead of what it was once documented to do. Its own surface
+    # is opened here, on the same channel as everything else.
+    traced = walkthrough.choose(final)
+    returned, drawn = pairs[traced]
+    trace = walkthrough.build(
+        instructions=SECTION_PROMPT_BASE,
+        document_text=document.for_prompt(),
+        model=MODEL,
+        returned=returned,
+        drawn=drawn,
+        index=traced,
+    )
+    for message in trace.pop("a2ui"):
+        yield Event("a2ui", message)
+    yield Event("trace", trace)
 
     yield Event(
         "meta",
@@ -551,7 +582,7 @@ def run_inspect(
     # Attached molecules go on their own surface, sent before the answer that
     # references it, so the pane never renders a turn pointing at a surface the
     # processor has not seen yet.
-    attached = _usable(parsed.molecules)
+    attached = [drawn for _, drawn in _usable(parsed.molecules)]
     surface_id = f"{a2ui.INSPECT_SURFACE_PREFIX}{uuid4().hex[:8]}" if attached else None
     if surface_id:
         for message in a2ui.full_surface(surface_id, attached):
