@@ -6,13 +6,22 @@ markup, class names, colours or layout -- it returns a validated list of
 owns how each one is drawn. Anything the model emits that is not in this union
 fails validation and never reaches the browser.
 
-Three families are implemented, chosen because together they are the whole
-visible surface of the RFP Overview screen:
+Five families are implemented. The first three are the whole visible surface of
+the RFP Overview screen; the last two come from §3.4, which the design system
+places on the Framing and Generation screens -- carried here deliberately, so a
+document that states a process or earns a narrative reads differently from one
+that does not:
 
 * `metric_grid`  -- DS §3.1, the top-line facts row.
 * `callout`      -- DS §3.2, the banded component. One component, three line
                     colours, optional intel header.
 * `score_table`  -- DS §3.3, the score row family with its aligned total.
+* `phase_plan`   -- DS §3.4, navy-banded phase cards with dot-bulleted scope.
+* `arc_beats`    -- DS §3.4, the three-up story arc on inner surfaces.
+
+§3.4's third component, the case card, is deliberately NOT here. It renders our
+own past work -- a rank, an outcome figure, a positioning line -- none of which
+appears in an opportunity document, so the model could only invent it.
 
 Two capabilities cut across all of them, because the design system says they do
 (§3: "most molecules can wear `.inspect` and `.signal`"): `inspect` makes the
@@ -34,6 +43,10 @@ MAX_MOLECULES = 6
 MIN_METRICS = 3
 MAX_METRICS = 4
 MAX_SCORE_ROWS = 6
+MIN_PHASES = 2
+MAX_PHASES = 4
+# DS §3.4's arc grid is `repeat(3, 1fr)`, so this is fixed rather than bounded.
+ARC_BEATS = 3
 
 # DS §3.2. The line colour alone carries the category, so this is a closed set
 # of *meanings*, not of colours -- the frontend maps meaning to class.
@@ -181,6 +194,83 @@ class ScoreTable(MoleculeBase):
     )
 
 
+class Phase(Strict):
+    """One card of DS §3.4's phase family. Navy left band, head row, dot bullets."""
+
+    tag: str = Field(
+        min_length=1,
+        max_length=16,
+        description="The short marker, e.g. 'Phase 1', 'Stage 2'. Not a sentence.",
+    )
+    name: str = Field(
+        min_length=1,
+        max_length=52,
+        description="What happens in this phase, e.g. 'Response & shortlisting'.",
+    )
+    when: str = Field(
+        default="",
+        max_length=32,
+        description=(
+            "The timeframe as the document states it: 'Weeks 1-2', 'By day 10', "
+            "'Within 30 days'. Shown in bold. Empty if the document does not date this phase."
+        ),
+    )
+    note: str = Field(
+        default="",
+        max_length=48,
+        description=(
+            "One short qualifier after the timeframe, e.g. 'at respondent's cost', "
+            "'milestone-linked'. Empty if there is nothing to add."
+        ),
+    )
+    scope: list[str] = Field(
+        default_factory=list,
+        max_length=4,
+        description=(
+            "Dot-bulleted lines describing what this phase involves, drawn from the document. "
+            "Two or three is usually right."
+        ),
+    )
+
+
+class PhasePlan(MoleculeBase):
+    """DS §3.4 -- the phased plan, as a stack of navy-banded phase cards.
+
+    One molecule holds the whole plan rather than one card per phase: the phases
+    are read together, and spending a molecule of the section budget on each
+    would crowd out everything else the document establishes.
+    """
+
+    type: Literal["phase_plan"] = "phase_plan"
+    phases: list[Phase] = Field(min_length=MIN_PHASES, max_length=MAX_PHASES)
+
+
+class Beat(Strict):
+    """One tile of DS §3.4's three-up story arc."""
+
+    label: str = Field(
+        min_length=1,
+        max_length=14,
+        description="The beat's name, one word: 'Open', 'Turn', 'Close'. Shown in navy caps.",
+    )
+    text: str = Field(
+        min_length=1,
+        max_length=200,
+        description="What to say at this beat, in one or two sentences. Grounded in the document.",
+    )
+
+
+class ArcBeats(MoleculeBase):
+    """DS §3.4 -- the story arc, as three tiles on inner surfaces.
+
+    The grid is `repeat(3, 1fr)`, so the count is fixed at three rather than
+    bounded: two beats would leave a visible empty column.
+    """
+
+    type: Literal["arc_beats"] = "arc_beats"
+    beats: list[Beat] = Field(min_length=ARC_BEATS, max_length=ARC_BEATS)
+
+
 # A plain union, deliberately NOT `Annotated[..., Field(discriminator="type")]`.
 # A discriminated union serialises to JSON Schema as `oneOf`, and the structured-
 # outputs API rejects it outright:
@@ -192,7 +282,7 @@ class ScoreTable(MoleculeBase):
 # distinct `type` literal, so Pydantic's smart-union matching resolves the family
 # unambiguously -- the cost is only that a validation failure reports against the
 # whole union rather than naming one family.
-Molecule = MetricGrid | Callout | ScoreTable
+Molecule = MetricGrid | Callout | ScoreTable | PhasePlan | ArcBeats
 
 
 class SectionPlan(Strict):

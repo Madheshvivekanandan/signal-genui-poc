@@ -24,7 +24,8 @@ frontend/src/
     stream.js              # the ENTIRE backend contract — the only place fetch appears
     coerce.js              # untrusted-payload coercers + capability classes
   molecules/
-    MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
+    MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  PhasePlan.jsx  ArcBeats.jsx
+    InspectTarget.jsx
   shell/
     Header.jsx  Section.jsx  ReviewPane.jsx
     Timings.jsx            # renders as the inspector's stage 4, not on the page
@@ -78,7 +79,7 @@ editing anything.
   before it reaches our code. This replaced a `hasOwnProperty` dispatch and is stronger, because
   the library enforces it. Component names are matched against a catalog map and never used to
   index an object, so the old prototype-pollution concern no longer applies.
-- **Four components, and A2UI's basic catalog is deliberately NOT registered.** `Column`, `Row`
+- **Six components, and A2UI's basic catalog is deliberately NOT registered.** `Column`, `Row`
   and `Card` inject their own flex styles and `--a2ui-*` spacing variables, which compete with
   `signal.css` for control of the section body. `MoleculeStack` is the only structural component
   and it draws the DS's own `.molecule-stack`. **Do not register `basicCatalog`'s components** —

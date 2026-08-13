@@ -98,6 +98,27 @@ document's own criteria and weights as its rows, and score each one as you hones
 assess our position against it. If the document states no criteria at all, omit this \
 family entirely.
 
+4. ONE phase_plan WHENEVER the document sets out a process that runs in distinct \
+stages -- a response deadline followed by shortlisting, presentations, award; a \
+migration with milestones; a proof of concept before contract. Use the document's own \
+stage names and its own dates, and put the timeframe in `when` exactly as it states it \
+("Within 14 days", "By day 10", "Q4"). Two to four phases.
+
+   A process described in a paragraph is a process drawn wrong -- if the document \
+sequences events, the sequence is the component. OMIT THIS ENTIRELY when the document \
+states no process, or states only a single deadline with nothing after it. An enquiry \
+that says "no timeline has been agreed" gets no phase plan; it gets a risk band saying so.
+
+5. ONE arc_beats -- three tiles labelled "Open", "Turn", "Close" -- WHEN the document \
+tells you what this buyer is afraid of, what outcome it says it will measure, or what \
+it has already decided. A document that states those things has handed you a position \
+to take, and the arc is where that position goes; it is worth a molecule of the budget \
+on a document like that. Each beat must trace to something the document states.
+
+   OMIT IT when the document is thin. A one-page enquiry that has not decided its own \
+budget, timeline or criteria does not support a pitch narrative, and inventing one from \
+four paragraphs is exactly the guesswork this page exists to avoid.
+
 THE SHAPE MUST FOLLOW THE DOCUMENT
 
 A thin enquiry that states almost nothing should come back short and heavily flagged -- \

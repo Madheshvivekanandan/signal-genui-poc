@@ -32,14 +32,20 @@ from pydantic.fields import FieldInfo
 
 import a2ui
 import schemas
-from schemas import Callout, MetricGrid, Molecule, ScoreRow, ScoreTable
+from schemas import ArcBeats, Callout, MetricGrid, Molecule, PhasePlan, ScoreRow, ScoreTable
 
 # One surface per family, so the page can draw each specimen set beside its own
 # field table instead of as one undifferentiated stack.
 SURFACE_PREFIX: Final = "catalog-"
 
-# The families, in the order the design system numbers them (DS §3.1-§3.3).
-_FAMILIES: Final[tuple[type[BaseModel], ...]] = (MetricGrid, Callout, ScoreTable)
+# The families, in the order the design system numbers them (DS §3.1-§3.4).
+_FAMILIES: Final[tuple[type[BaseModel], ...]] = (
+    MetricGrid,
+    Callout,
+    ScoreTable,
+    PhasePlan,
+    ArcBeats,
+)
 
 # DS §3: these two cut across every family, so they are listed last in each table
 # rather than interleaved with the fields that differ.
@@ -231,6 +237,46 @@ _SPECIMENS: Final[dict[str, list[Molecule]]] = {
                 band="mid",
                 note="The total reuses the row grid, so the columns line up.",
             ),
+        )
+    ],
+    "phase_plan": [
+        PhasePlan(
+            phases=[
+                schemas.Phase(
+                    tag="Phase 1",
+                    name="What the stage is called",
+                    when="Weeks 1-2",
+                    note="the qualifier, after the dot",
+                    scope=[
+                        "Dot bullets, drawn from the document's own text.",
+                        "The glyph comes from the stylesheet, not from the agent.",
+                    ],
+                ),
+                schemas.Phase(
+                    tag="Phase 2",
+                    name="The timeframe is bold; the note is not",
+                    when="By day 10",
+                    scope=["A phase with no note renders its timeframe alone."],
+                ),
+            ],
+        )
+    ],
+    "arc_beats": [
+        ArcBeats(
+            beats=[
+                schemas.Beat(
+                    label="Open",
+                    text="Where to start, in the buyer's own language. Three tiles, always three.",
+                ),
+                schemas.Beat(
+                    label="Turn",
+                    text="The move the document earns. This family is a judgement, not a restatement.",
+                ),
+                schemas.Beat(
+                    label="Close",
+                    text="What to land on. Each beat has to trace back to something stated.",
+                ),
+            ],
         )
     ],
 }

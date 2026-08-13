@@ -11,7 +11,7 @@
  * implementation that receives already-resolved values. A2UI's generic binder
  * sits between them, so the molecules never see a binding object.
  *
- * Four components, and deliberately no more. **A2UI's basic catalog is not
+ * Six components, and deliberately no more. **A2UI's basic catalog is not
  * registered** — `Column`, `Row` and `Card` inject their own flex styles and
  * spacing variables, which would compete with `signal.css` for control of the
  * section body. The only structural component here is `MoleculeStack`, which
@@ -33,9 +33,11 @@ import { basicCatalog, createComponentImplementation } from '@a2ui/react/v0_9';
 import { Catalog, CommonSchemas } from '@a2ui/web_core/v0_9';
 import { z } from 'zod';
 
+import ArcBeats from '../molecules/ArcBeats.jsx';
 import Callout from '../molecules/Callout.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import MetricGrid from '../molecules/MetricGrid.jsx';
+import PhasePlan from '../molecules/PhasePlan.jsx';
 import ScoreTable from '../molecules/ScoreTable.jsx';
 
 export const CATALOG_ID = 'https://signal.rfp/catalogs/rfp-overview/v1.json';
@@ -163,6 +165,34 @@ const ScoreTableComponent = createComponentImplementation(ScoreTableApi, ({ prop
   </ErrorBoundary>
 ));
 
+const PhasePlanApi = {
+  name: 'PhasePlan',
+  schema: z.object({ phases: dynamicValue, ...CAPABILITIES }),
+};
+
+const PhasePlanComponent = createComponentImplementation(PhasePlanApi, ({ props, context }) => (
+  <ErrorBoundary>
+    <PhasePlan
+      molecule={{ phases: props.phases, inspect: props.inspect, signal: props.signal }}
+      onInspect={inspectHandler(context)}
+    />
+  </ErrorBoundary>
+));
+
+const ArcBeatsApi = {
+  name: 'ArcBeats',
+  schema: z.object({ beats: dynamicValue, ...CAPABILITIES }),
+};
+
+const ArcBeatsComponent = createComponentImplementation(ArcBeatsApi, ({ props, context }) => (
+  <ErrorBoundary>
+    <ArcBeats
+      molecule={{ beats: props.beats, inspect: props.inspect, signal: props.signal }}
+      onInspect={inspectHandler(context)}
+    />
+  </ErrorBoundary>
+));
+
 /**
  * The catalog the agent generates against.
  *
@@ -173,6 +203,13 @@ const ScoreTableComponent = createComponentImplementation(ScoreTableApi, ({ prop
  */
 export const signalCatalog = new Catalog(
   CATALOG_ID,
-  [MoleculeStack, MetricGridComponent, CalloutComponent, ScoreTableComponent],
+  [
+    MoleculeStack,
+    MetricGridComponent,
+    CalloutComponent,
+    ScoreTableComponent,
+    PhasePlanComponent,
+    ArcBeatsComponent,
+  ],
   [...basicCatalog.functions.values()],
 );
