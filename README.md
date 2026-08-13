@@ -33,20 +33,49 @@ binding. It returns molecules; the compiler decides that a `callout` is a `Callo
 `/molecules/1/*`. So there are two closed sets, not one — the molecule union the model
 generates against, and the catalog the renderer will accept.
 
-## The three molecule families
+## The five molecule families
 
-Implemented from the design system's §3, chosen because together they are the whole visible
-surface of the RFP Overview screen:
+The first three are the whole visible surface of the RFP Overview screen. The last two come
+from §3.4, which the design system places on the Framing and Generation screens — carried here
+deliberately, so a document that sets out a process reads differently from one that does not:
 
 - **`metric_grid`** — DS §3.1. Top-line facts, 3 or 4 tiles.
 - **`callout`** — DS §3.2. The banded component: one component, three line colours
   (navy = context, teal = recommendation, coral = risk), optional intel header with source.
 - **`score_table`** — DS §3.3. Score rows with an aligned total.
+- **`phase_plan`** — DS §3.4. Navy-banded phase cards: tag, name, the timeframe in the
+  document's own words, dot-bulleted scope. 2–4 phases in one molecule.
+- **`arc_beats`** — DS §3.4. The three-up story arc on inner surfaces. Fixed at three,
+  because `.arc-beats` is `repeat(3, 1fr)` and two would leave an empty column.
 
-Adding a fourth is exactly three edits, and they must stay in step: a Pydantic model added to
+§3.4's third component, the **case card**, is deliberately absent. It renders our own past work
+— a rank, an outcome figure, a positioning line — none of which appears in an opportunity
+document, so the model could only invent it.
+
+Adding a sixth is exactly three edits, and they must stay in step: a Pydantic model added to
 the union in `backend/schemas.py`, a row in `_VIEW` in `backend/a2ui.py` naming the component
 and the fields it binds, and a component registered in `frontend/src/a2ui/catalog.jsx`. (It was
-two before A2UI; the compiler is the third.)
+two before A2UI; the compiler is the third.) In practice a family also wants a rule in
+`SECTION_PROMPT_BASE` saying when it is earned — without one the model will not reach for it.
+
+### What the agent actually picks
+
+Observed on `gpt-4o`, three runs across all four fixtures:
+
+| | metric_grid | callout | score_table | phase_plan | arc_beats |
+|---|---|---|---|---|---|
+| Cedar | ✓ | 3–4 | sometimes | ✓ | — |
+| Meridian | ✓ | 1–4 | ✓ | ✓ | — |
+| Halcyon | ✓ | 3 | — | ✓ | — |
+| Northwind | — | 4, mostly risk | — | — | — |
+
+`phase_plan` is picked by every document that sequences events and correctly omitted by
+Northwind, which states "no timeline has been agreed". **`arc_beats` was never chosen** — not
+in twelve generations, and not when promoted to third in the prompt. The molecule budget was
+not the constraint; runs that left a slot free still skipped it. The honest reading is that
+against a procurement document the model does not judge a pitch narrative to be earned, which
+is the behaviour the prompt asks for. It stays in the catalog: a closed vocabulary the agent
+declines part of is the claim working, not failing.
 
 ## A2UI
 
@@ -69,7 +98,8 @@ What A2UI actually contributes here:
   (`{event: {name: "inspect", context: {subject}}}`), which arrives at the `MessageProcessor`'s
   handler. It is not a React callback threaded through props.
 
-The catalog is four components: `MoleculeStack`, `MetricGrid`, `Callout`, `ScoreTable`.
+The catalog is six components: `MoleculeStack`, `MetricGrid`, `Callout`, `ScoreTable`,
+`PhasePlan`, `ArcBeats`.
 **A2UI's basic catalog is deliberately not registered.** `Column`, `Row` and `Card` inject
 their own flex styles and spacing variables, which would compete with `signal.css` for control
 of the section body; `MoleculeStack` draws the DS's own `.molecule-stack` and nothing else. A
@@ -434,7 +464,7 @@ frontend/src/
   signal.css        # VENDORED design system — do not edit
   app.css           # only what the DS does not define
   a2ui/
-    catalog.jsx     # the four components an agent may put on screen — read this third
+    catalog.jsx     # the six components an agent may put on screen — read this third
     messages.js     # the two messages the client builds for itself
   molecules/        # the DS implementations, unchanged by the A2UI migration
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
