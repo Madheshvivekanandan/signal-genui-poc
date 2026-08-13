@@ -122,6 +122,7 @@ docker compose up --build   # http://localhost:3000
 |---|---|---|
 | GET | `/api/health` | liveness, model, key presence, protocol, catalog id |
 | GET | `/api/documents` | the documents this build can analyse, and the default |
+| GET | `/api/catalog` | the molecule vocabulary, introspected from `schemas.py`, plus specimens |
 | GET | `/api/rfp?document=` | the static header facts — *not* generated |
 | GET | `/api/sections/rfp-overview` | SSE: A2UI messages for the section, streamed |
 | POST | `/api/inspect` | SSE: an answer, plus A2UI messages for anything it attaches |
@@ -178,7 +179,7 @@ request.
 
 ## The protocol inspector — for demoing this
 
-Collapsed at the bottom of the page, below the timings. Open it and it shows, in order:
+Collapsed at the bottom of the page. Open it and it shows, in order:
 
 1. **Agent output** — the model's structured JSON exactly as it came back. Nothing in it names
    a component, a class or a colour.
@@ -187,23 +188,52 @@ Collapsed at the bottom of the page, below the timings. Open it and it shows, in
    people assume is magic.
 3. **The stream** — every frame in arrival order, channel-tagged, with relative timings and the
    raw JSON one click away. The `A2UI` chips are the only frames that draw anything.
+4. **Measured** — what the three stages above cost in wall-clock time. It lives here rather than
+   on the page: instrumentation belongs with instrumentation.
 
-Stage 4 is the page above it. **Nothing renders from stages 1–3** — delete the inspector and the
-UI is byte-identical, which is the property being demonstrated: the model produced data, and the
-protocol produced the interface.
+The fifth stage is the page above it. **Nothing renders from stages 1–4** — delete the inspector
+and the UI is byte-identical, which is the property being demonstrated: the model produced data,
+and the protocol produced the interface.
+
+## The catalog offered to the agent
+
+At the foot of the page, kept separate from everything above it: every component the model may
+choose from, and nothing else. The claim this POC rests on is that the vocabulary is closed, and
+that is only checkable if the vocabulary is visible.
+
+Each family arrives twice over, because a name does not tell you what a `callout` is:
+
+- **The specimen.** A real molecule, compiled by `a2ui.py` and drawn by `A2uiSurface` against the
+  same catalog that renders the section above — the same path, the same components. It is not a
+  picture of the component; it is the component. The specimen content describes the field it
+  occupies, so the band explains what a band is for.
+- **The field table.** Every field the model may set, its type, its closed set of allowed values,
+  its length bounds, and the `Field(description=…)` prose. That description is not a gloss written
+  for this page — Pydantic puts it in the JSON Schema and the JSON Schema *is* the
+  `response_format`, so it is literally what the model reads.
+
+Both come from `/api/catalog`, which introspects `schemas.py` rather than restating it. Change a
+bound or a tone in the schema and the panel reports the new one; there is no second copy to keep
+in step.
+
+Specimens carry `inspect: false` — the flag is documented in the table, but a gallery band that
+opened the review pane would send the model a question about a specimen.
 
 A demo script that lands in about ninety seconds:
 
 1. Reload with the inspector closed. Watch the section build — grid first, then bands. That is
    the streaming claim, visible.
-2. Read the timings row. First component vs. section complete; the gap is what streaming bought.
+2. Scroll to the catalog at the foot of the page: *"this is everything it may return."* Three
+   components and their fields — then scroll back and switch documents to watch the same three
+   produce a different shape.
 3. Open the inspector. Stage 1: *"this is all the model returned — it's data, there is no UI in
    it."*
 4. Stage 2: *"this is where it became UI, and no model chose any of it."* Point at one binding.
 5. Stage 3: scroll to the last `updateComponents`. It lists every component at once — the
    authoritative pass replacing the optimistic one. Compare it to the earlier single-component
    frames.
-6. Click the budget tile. The pane opens from a real A2UI action, and the agent declines to
+6. Stage 4: first component vs. section complete. The gap is what streaming bought.
+7. Click the budget tile. The pane opens from a real A2UI action, and the agent declines to
    defend the estimate.
 
 The `plan` channel exists only for this. It carries the model's output *before* `_usable()`
@@ -213,7 +243,8 @@ absence — worth knowing, because that difference is a good demo moment when it
 ## Measured performance
 
 Whether this lags was the open question behind the POC, so the numbers are on screen
-(`Timings.jsx`) rather than asserted. Observed across runs on `gpt-4o-mini`:
+(`Timings.jsx`, as the inspector's stage 4) rather than asserted. Observed across runs on
+`gpt-4o-mini`:
 
 | | On A2UI | Before A2UI |
 |---|---|---|
@@ -407,8 +438,9 @@ frontend/src/
     messages.js     # the two messages the client builds for itself
   molecules/        # the DS implementations, unchanged by the A2UI migration
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
-  shell/            # static chrome: Header, Section, ReviewPane, Timings
-                    # + DocumentPicker, ProtocolInspector — demo surfaces
+  shell/            # static chrome: Header, Section, ReviewPane
+                    # + DocumentPicker, MoleculeCatalog, ProtocolInspector
+                    #   (Timings renders inside it) — demo surfaces
   lib/              # stream.js (the SSE contract), coerce.js
 ```
 

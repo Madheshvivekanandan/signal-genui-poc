@@ -8,13 +8,16 @@
  *   2. The compile — each molecule mapped to the A2UI component and the data-model
  *      paths it binds. This is the step people assume is magic.
  *   3. The stream — every frame, in arrival order, with its channel.
+ *   4. Measured — what the three stages above cost in wall-clock time.
  *
- * Stage 4 is the page above it, which is drawn *only* from stage 3. Nothing here
- * renders anything: if the inspector were deleted the UI would be identical, and
- * that is the point being demonstrated.
+ * The fifth stage is the page above it, which is drawn *only* from stage 3.
+ * Nothing here renders anything: if the inspector were deleted the UI would be
+ * identical, and that is the point being demonstrated.
  */
 
 import { useMemo } from 'react';
+
+import Timings from './Timings.jsx';
 
 /** A2UI v0.9's four server-to-client message types, in spec order. */
 const MESSAGE_KINDS = ['createSurface', 'updateDataModel', 'updateComponents', 'deleteSurface'];
@@ -73,7 +76,15 @@ function Json({ value }) {
   return <pre className="insp-json">{JSON.stringify(value, null, 2)}</pre>;
 }
 
-export default function ProtocolInspector({ plan, frames, surfaceId, isOpen, onToggle }) {
+export default function ProtocolInspector({
+  plan,
+  frames,
+  surfaceId,
+  timings,
+  moleculeCount,
+  isOpen,
+  onToggle,
+}) {
   const tree = useMemo(() => latestTree(frames, surfaceId), [frames, surfaceId]);
   const a2uiCount = frames.filter((frame) => frame.channel === 'a2ui').length;
   const returned = plan?.molecules ?? [];
@@ -108,7 +119,10 @@ export default function ProtocolInspector({ plan, frames, surfaceId, isOpen, onT
               <>
                 <p className="insp-note">
                   Model <code>{plan.model}</code>. Structured output validated against the{' '}
-                  <code>Molecule</code> union. Nothing here names a component or a colour.
+                  <code>Molecule</code> union. Choosing the family is the agent&rsquo;s call —{' '}
+                  <code>type</code> is its design decision. What it never names is the A2UI
+                  component that draws it, the paths it binds, or a colour. Stage 2 is where
+                  those are decided.
                 </p>
                 <Json value={{ summary: plan.summary, molecules: plan.molecules }} />
               </>
@@ -166,7 +180,7 @@ export default function ProtocolInspector({ plan, frames, surfaceId, isOpen, onT
             ) : null}
           </div>
 
-          <div className="insp-stage">
+          <div className="insp-stage insp-stage-wide">
             <h4>
               <span className="insp-step">3</span> The stream
               <em>{frames.length} frames, in arrival order</em>
@@ -189,6 +203,18 @@ export default function ProtocolInspector({ plan, frames, surfaceId, isOpen, onT
                 </li>
               ))}
             </ol>
+          </div>
+
+          <div className="insp-stage insp-stage-wide">
+            <h4>
+              <span className="insp-step">4</span> Measured
+              <em>what the three stages above cost</em>
+            </h4>
+            {timings?.total_ms != null ? (
+              <Timings timings={timings} moleculeCount={moleculeCount} />
+            ) : (
+              <p className="insp-note">No completed run to measure yet.</p>
+            )}
           </div>
         </div>
       ) : null}

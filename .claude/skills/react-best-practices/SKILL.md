@@ -26,9 +26,11 @@ frontend/src/
   molecules/
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
   shell/
-    Header.jsx  Section.jsx  ReviewPane.jsx  Timings.jsx
+    Header.jsx  Section.jsx  ReviewPane.jsx
+    Timings.jsx            # renders as the inspector's stage 4, not on the page
     DocumentPicker.jsx     # demo surface: switch document, section re-composes
-    ProtocolInspector.jsx  # demo surface: agent JSON → compile → frames. Renders nothing.
+    MoleculeCatalog.jsx    # demo surface: the vocabulary + live specimens, from /api/catalog
+    ProtocolInspector.jsx  # demo surface: agent JSON → compile → frames → measured. Renders nothing.
   components/
     ErrorBoundary.jsx
 ```
@@ -177,7 +179,7 @@ sufficient.**
 - **Never define a component inside a component** — it remounts and loses state every parent
   render. `Row` in `ScoreTable.jsx` is module-scope for this reason.
 - `handle*` for internal handlers, `on*` for props. `is/has/can/should` for booleans.
-- `UPPER_SNAKE` module constants — `TONE_CLASSES`, `BAND_CLASSES`, `LOCKED_SECTIONS`. No inline
+- `UPPER_SNAKE` module constants — `TONE_CLASSES`, `BAND_CLASSES`, `MAX_FRAMES`. No inline
   magic numbers.
 - Ternaries for conditional render, never `&&` with a possibly-numeric left side
   (`{count && <X/>}` renders a literal `0`).

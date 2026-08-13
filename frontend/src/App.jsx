@@ -3,17 +3,23 @@ import { MessageProcessor } from '@a2ui/web_core/v0_9';
 
 import DocumentPicker from './shell/DocumentPicker.jsx';
 import Header from './shell/Header.jsx';
+import MoleculeCatalog from './shell/MoleculeCatalog.jsx';
 import ProtocolInspector from './shell/ProtocolInspector.jsx';
 import ReviewPane from './shell/ReviewPane.jsx';
 import Section from './shell/Section.jsx';
-import Timings from './shell/Timings.jsx';
 import { INSPECT_ACTION, signalCatalog } from './a2ui/catalog.jsx';
 import {
   SECTION_SURFACE_ID,
   deleteSurfaceMessage,
   transportFailureMessages,
 } from './a2ui/messages.js';
-import { fetchDocuments, fetchRfpHeader, streamInspect, streamOverview } from './lib/stream.js';
+import {
+  fetchCatalog,
+  fetchDocuments,
+  fetchRfpHeader,
+  streamInspect,
+  streamOverview,
+} from './lib/stream.js';
 
 /**
  * The RFP page.
@@ -38,11 +44,6 @@ import { fetchDocuments, fetchRfpHeader, streamInspect, streamOverview } from '.
  * overwrites the first rather than appending to it.
  */
 
-const LOCKED_SECTIONS = [
-  { index: 2, title: 'Prospect Intelligence' },
-  { index: 3, title: 'Suggested POVs' },
-];
-
 // A bound on the inspector's recording, so a long session cannot grow it without
 // limit. A section run is ~15 frames; an inspect answer adds 3.
 const MAX_FRAMES = 300;
@@ -56,6 +57,11 @@ export default function App() {
   // change it.
   const [documentList, setDocumentList] = useState([]);
   const [documentKey, setDocumentKey] = useState(null);
+
+  // The molecule vocabulary, for the panel at the foot of the page. It describes
+  // the system rather than any document, so it is fetched once and never cleared
+  // on a document switch.
+  const [catalog, setCatalog] = useState(null);
 
   // Everything the section head and the timings readout need, merged as `meta`
   // frames arrive. Not A2UI — chrome is not a component.
@@ -125,6 +131,24 @@ export default function App() {
     });
     return () => controller.abort();
   }, []);
+
+  // The catalog's specimens arrive as real A2UI messages and go through the same
+  // processor as the agent's output, so the gallery is drawn by the renderer
+  // rather than by a second code path that could disagree with it. Its surfaces
+  // are not the section's, so the per-document teardown below leaves them alone.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCatalog(controller.signal).then((payload) => {
+      if (controller.signal.aborted || !payload) return;
+      try {
+        processor.processMessages(payload.a2ui ?? []);
+      } catch (error) {
+        console.error('A2UI catalog specimen rejected', error);
+      }
+      setCatalog(payload);
+    });
+    return () => controller.abort();
+  }, [processor]);
 
   useEffect(() => {
     if (!documentKey) return undefined;
@@ -341,19 +365,19 @@ export default function App() {
           }
         />
 
-        {LOCKED_SECTIONS.map((section) => (
-          <Section key={section.index} index={section.index} title={section.title} isLocked />
-        ))}
-
-        <Timings timings={meta} moleculeCount={meta?.molecule_count ?? 0} />
-
         <ProtocolInspector
           plan={plan}
           frames={frames}
           surfaceId={SECTION_SURFACE_ID}
+          timings={meta}
+          moleculeCount={meta?.molecule_count ?? 0}
           isOpen={isInspectorOpen}
           onToggle={() => setIsInspectorOpen((open) => !open)}
         />
+
+        {/* Last on the page and deliberately separate: this is reference material
+            about the system, not a reading of the document above it. */}
+        <MoleculeCatalog catalog={catalog} surfaces={surfaces} />
       </div>
 
       {isPaneOpen ? (

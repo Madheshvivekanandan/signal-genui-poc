@@ -24,25 +24,8 @@ export default function Section({
   moleculeCount,
   signalCount,
   isStreaming,
-  isLocked,
   cta,
 }) {
-  if (isLocked) {
-    return (
-      <section className="glass" aria-label={`${title} (locked)`}>
-        <div className="acc-head" style={{ opacity: 0.5 }}>
-          <div className="title-block">
-            <h3>
-              <span className="section-num">{index}</span> {title}
-            </h3>
-          </div>
-          <span className="review-trigger" style={{ letterSpacing: '0.10em' }}>
-            Locked
-          </span>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="glass" data-section={`section-${index}`}>
