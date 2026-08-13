@@ -60,6 +60,8 @@ _VIEW: dict[str, tuple[str, tuple[str, ...]]] = {
     "metric_grid": ("MetricGrid", ("metrics",)),
     "callout": ("Callout", ("tone", "lead", "body", "label", "source")),
     "score_table": ("ScoreTable", ("rows", "total")),
+    "phase_plan": ("PhasePlan", ("phases",)),
+    "arc_beats": ("ArcBeats", ("beats",)),
 }
 
 # DS §3: every molecule can wear `.inspect` and `.signal`, so every component
