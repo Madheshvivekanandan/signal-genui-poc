@@ -26,9 +26,11 @@ frontend/src/
   molecules/
     MetricGrid.jsx  Callout.jsx  ScoreTable.jsx  InspectTarget.jsx
   shell/
-    Header.jsx  Section.jsx  ReviewPane.jsx  Timings.jsx
+    Header.jsx  Section.jsx  ReviewPane.jsx
+    Timings.jsx            # renders as the inspector's stage 4, not on the page
     DocumentPicker.jsx     # demo surface: switch document, section re-composes
-    ProtocolInspector.jsx  # demo surface: agent JSON → compile → frames. Renders nothing.
+    MoleculeCatalog.jsx    # demo surface: the vocabulary + live specimens, from /api/catalog
+    ProtocolInspector.jsx  # demo surface: agent JSON → compile → frames → measured. Renders nothing.
   components/
     ErrorBoundary.jsx
 ```

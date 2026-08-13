@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import a2ui
 import agent
+import catalog
 import documents
 from schemas import Turn
 
@@ -136,6 +137,18 @@ def list_documents() -> dict[str, object]:
             for document in documents.DOCUMENTS.values()
         ],
     }
+
+
+@app.get("/api/catalog", summary="The molecule vocabulary the agent generates against.")
+def molecule_catalog() -> dict[str, object]:
+    """The closed set of components the model may choose from, plus specimens.
+
+    Derived from `schemas.py` by introspection rather than written out, so the
+    field tables are the same constraints the structured-outputs call enforces.
+    The specimens are compiled by `a2ui.py`, so what the page draws is the real
+    component and not an illustration of one.
+    """
+    return catalog.describe()
 
 
 @app.get("/api/rfp", summary="The header facts for one document.")

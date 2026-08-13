@@ -144,6 +144,18 @@ def component_for(molecule: Molecule, index: int) -> dict:
     return component
 
 
+def component_name(molecule_type: str) -> str:
+    """The catalog component that draws a molecule family.
+
+    Exposed so the vocabulary endpoint can report the mapping without reaching
+    into `_VIEW`, which is this module's own business.
+
+    Raises:
+        KeyError: If the family has no view -- a `_VIEW` row was forgotten.
+    """
+    return _VIEW[molecule_type][0]
+
+
 def root_component(count: int) -> dict:
     """The stack that holds `count` molecules, in order."""
     return {

@@ -135,6 +135,26 @@ export async function fetchDocuments(signal) {
 }
 
 /**
+ * Fetch the molecule vocabulary: the families, their fields, and the A2UI
+ * messages that draw a specimen of each.
+ *
+ * The specimens arrive as real protocol messages rather than as data to render,
+ * so the gallery goes through the same `MessageProcessor` and the same catalog as
+ * the agent's own output. Resolves to null on failure — the vocabulary panel is
+ * reference material and its absence must not cost the page.
+ */
+export async function fetchCatalog(signal) {
+  try {
+    const response = await fetch('/api/catalog', { signal });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    if (error.name !== 'AbortError') console.error('could not load the catalog', error);
+    return null;
+  }
+}
+
+/**
  * Fetch the static header for one document.
  *
  * Resolves to null on any failure: the header is chrome, and a missing one should

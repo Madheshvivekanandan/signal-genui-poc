@@ -9,6 +9,11 @@
  * Time-to-first-molecule is the number that matters. Total time is roughly what a
  * non-streaming implementation would make the user wait, so the gap between the
  * two is what streaming actually buys — stated, not asserted.
+ *
+ * It renders as the inspector's fourth stage rather than as its own strip on the
+ * page. Instrumentation belongs with instrumentation, and the inspector is
+ * already the surface that answers "what actually happened". The heading there
+ * carries the "Measured" label, so this renders the figures only.
  */
 export default function Timings({ timings, moleculeCount }) {
   // `meta` frames now also carry running counts during the stream, so presence
@@ -22,9 +27,6 @@ export default function Timings({ timings, moleculeCount }) {
 
   return (
     <div className="timings" role="status">
-      <span className="small-label" style={{ margin: 0 }}>
-        Measured
-      </span>
       <dl>
         <div>
           <dt>First component painted</dt>
