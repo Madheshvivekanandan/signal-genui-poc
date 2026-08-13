@@ -1,5 +1,10 @@
-fastapi>=0.115
-uvicorn[standard]>=0.34
-openai>=1.59,<2
-pydantic>=2.9
-python-dotenv>=1.0
+# The deployed resolution -- the versions this build was developed and tested
+# against. `pyproject.toml` holds the compatibility ranges and the dev extras;
+# this file is what the Docker image installs, so it is pinned. Both are updated
+# together.
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+openai==1.109.1
+pydantic==2.13.4
+pydantic-settings==2.12.0
+python-dotenv==1.2.2

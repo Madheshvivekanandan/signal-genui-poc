@@ -25,13 +25,14 @@ the document again before assuming the model was wrong.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Final
 
 # The header of the RFP Overview screen is not generated -- these facts come from
 # the record. Kept beside the body so a document is one object, not four parallel
 # constants that can drift.
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Document:
     """One analysable document, plus the header facts the page shows above it."""
 
@@ -307,13 +308,13 @@ to displace.
 )
 
 
-DOCUMENTS: dict[str, Document] = {
+DOCUMENTS: Final[dict[str, Document]] = {
     document.key: document for document in (CEDAR, MERIDIAN, NORTHWIND, HALCYON)
 }
 
 # Cedar is the default because the design mock and the README's screenshots are of
 # that screen; a demo that opens on anything else stops matching the reference.
-DEFAULT_KEY = CEDAR.key
+DEFAULT_KEY: Final = CEDAR.key
 
 
 def get(key: str | None) -> Document:

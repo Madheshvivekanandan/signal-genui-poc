@@ -1,0 +1,87 @@
+[project]
+name = "signal-genui-backend"
+version = "0.1.0"
+description = "Agent output as design-system molecules, streamed as A2UI v0.9."
+requires-python = ">=3.12"
+
+# Lower-bounded, not exact-pinned: `requirements.txt` is the deployed resolution
+# and this is the compatibility statement. Both are updated together.
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "openai>=1.59,<2",
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "httpx>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "N", "UP", "B", "S", "SIM", "C4", "RET", "ARG", "PTH", "ASYNC", "ANN",
+]
+ignore = [
+    # The prompts are long English paragraphs held in module constants; ruff's
+    # formatter will not rewrap a string literal, so E501 there is unfixable
+    # without making the prompt harder to read than the line is long.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert (S101), use fixture arguments they do not read (ARG001), and hold
+# obviously-fake credentials (S106).
+"tests/*" = ["S101", "ARG001", "ANN", "S106"]
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["app", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# The SDK's streaming helpers are partially typed; the boundary where its
+# partial-parse snapshots enter this code is narrowed by hand in
+# `agent._parse_partial`.
+module = ["openai.*"]
+follow_untyped_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "integration: exercises the app through its HTTP surface",
+]
+filterwarnings = [
+    "error",
+    # The OpenAI SDK's structured-output helpers still live under `.beta`, which
+    # emits a deprecation notice on import in recent releases.
+    "default::DeprecationWarning:openai.*",
+    # Starlette's `TestClient` now prefers `httpx2`. It still works on `httpx`,
+    # and this is a test-only dependency -- nothing the service ships is
+    # affected. Remove this line when the test extra moves to `httpx2`.
+    "default::starlette.exceptions.StarletteDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    # Four English documents held as string literals. Covered by the tests that
+    # read them, but line coverage of a fixture is not a signal.
+    "app/documents.py",
+]

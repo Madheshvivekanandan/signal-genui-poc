@@ -27,11 +27,11 @@ v0.9 is the only version that renders natively today.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Final
 
-from schemas import Molecule
+from app.schemas import Molecule
 
-VERSION = "v0.9"
+VERSION: Final = "v0.9"
 
 # Our catalog: four components, registered by the client under this same id. It
 # is an identifier, never a URL that gets fetched.
@@ -73,7 +73,7 @@ CAPABILITY_FIELDS = ("inspect", "signal")
 # --- message builders -----------------------------------------------------
 
 
-def create_surface(surface_id: str) -> dict:
+def create_surface(surface_id: str) -> dict[str, Any]:
     """Open a surface.
 
     v0.9's `createSurface` carries nothing beyond the ids. Inline `components`
@@ -87,7 +87,7 @@ def create_surface(surface_id: str) -> dict:
     }
 
 
-def update_components(surface_id: str, components: list[dict]) -> dict:
+def update_components(surface_id: str, components: list[dict[str, Any]]) -> dict[str, Any]:
     """Add or replace components by id. Ids not mentioned are left alone."""
     return {
         "version": VERSION,
@@ -95,7 +95,9 @@ def update_components(surface_id: str, components: list[dict]) -> dict:
     }
 
 
-def update_data_model(surface_id: str, path: str, value: Any) -> dict:
+# `value` is `Any` by the protocol's own definition: `updateDataModel` writes
+# arbitrary JSON at a pointer, so narrowing it here would narrow A2UI.
+def update_data_model(surface_id: str, path: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
     """Write `value` at `path` in the surface's data model.
 
     Every call here writes the whole model at `/`. Writing a single index
@@ -109,7 +111,7 @@ def update_data_model(surface_id: str, path: str, value: Any) -> dict:
     }
 
 
-def bind(path: str) -> dict:
+def bind(path: str) -> dict[str, str]:
     """A data-model binding -- the `{"path": ...}` form A2UI resolves at render."""
     return {"path": path}
 
@@ -122,7 +124,7 @@ def bind(path: str) -> dict:
 # --- the compiler ---------------------------------------------------------
 
 
-def molecule_data(molecule: Molecule) -> dict:
+def molecule_data(molecule: Molecule) -> dict[str, Any]:
     """One molecule's values, as stored in the surface data model.
 
     `type` is kept even though no component binds it: the data model is the
@@ -132,7 +134,7 @@ def molecule_data(molecule: Molecule) -> dict:
     return molecule.model_dump(mode="json")
 
 
-def component_for(molecule: Molecule, index: int) -> dict:
+def component_for(molecule: Molecule, index: int) -> dict[str, Any]:
     """One molecule -> the single catalog component that draws it.
 
     Molecules are not decomposed into Cards and Columns. A metric grid is one
@@ -195,7 +197,7 @@ def directness_cost(molecules: list[Molecule]) -> dict[str, int]:
     }
 
 
-def root_component(count: int) -> dict:
+def root_component(count: int) -> dict[str, Any]:
     """The stack that holds `count` molecules, in order."""
     return {
         "id": ROOT_ID,
@@ -204,19 +206,19 @@ def root_component(count: int) -> dict:
     }
 
 
-def component_tree(molecules: list[Molecule]) -> list[dict]:
+def component_tree(molecules: list[Molecule]) -> list[dict[str, Any]]:
     """Every component needed to draw `molecules`, root included."""
     components = [component_for(molecule, index) for index, molecule in enumerate(molecules)]
     components.append(root_component(len(molecules)))
     return components
 
 
-def data_model(molecules: list[Molecule]) -> dict:
+def data_model(molecules: list[Molecule]) -> dict[str, Any]:
     """The surface data model the component bindings resolve against."""
     return {"molecules": [molecule_data(molecule) for molecule in molecules]}
 
 
-def open_surface(surface_id: str) -> list[dict]:
+def open_surface(surface_id: str) -> list[dict[str, Any]]:
     """Open a surface and seed an empty data model.
 
     The empty `molecules` list matters: a component whose binding resolves
@@ -229,7 +231,7 @@ def open_surface(surface_id: str) -> list[dict]:
     ]
 
 
-def append_molecule(surface_id: str, molecules: list[Molecule]) -> list[dict]:
+def append_molecule(surface_id: str, molecules: list[Molecule]) -> list[dict[str, Any]]:
     """Messages that add the newest molecule in `molecules` to the surface.
 
     Data first, then components, so no binding is ever live against a model that
@@ -247,7 +249,7 @@ def append_molecule(surface_id: str, molecules: list[Molecule]) -> list[dict]:
     ]
 
 
-def replace_surface(surface_id: str, molecules: list[Molecule]) -> list[dict]:
+def replace_surface(surface_id: str, molecules: list[Molecule]) -> list[dict[str, Any]]:
     """Replace a surface's entire contents with `molecules`.
 
     This is the authoritative pass. It deliberately re-sends everything the
@@ -262,6 +264,6 @@ def replace_surface(surface_id: str, molecules: list[Molecule]) -> list[dict]:
     ]
 
 
-def full_surface(surface_id: str, molecules: list[Molecule]) -> list[dict]:
+def full_surface(surface_id: str, molecules: list[Molecule]) -> list[dict[str, Any]]:
     """A complete surface as one batch, for content that is not streamed."""
     return [create_surface(surface_id), *replace_surface(surface_id, molecules)]
