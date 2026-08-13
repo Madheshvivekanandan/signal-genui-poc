@@ -15,6 +15,16 @@ export const VERSION = 'v0.9';
 export const SECTION_SURFACE_ID = 'rfp-overview';
 
 /**
+ * The walkthrough's own surface, where the traced molecule is drawn a second
+ * time. Must match `SURFACE_ID` in `backend/walkthrough.py`.
+ *
+ * Torn down on a document switch alongside the section: the trace belongs to one
+ * document's run, and a stale molecule under a heading describing the new
+ * document's run is worse than an empty panel.
+ */
+export const WALKTHROUGH_SURFACE_ID = 'walkthrough';
+
+/**
  * The band shown when the stream dies mid-flight.
  *
  * Built with inline values rather than data-model bindings: there is no second
