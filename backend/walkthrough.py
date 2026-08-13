@@ -129,6 +129,8 @@ def build(
     returned: Molecule,
     drawn: Molecule,
     index: int,
+    returned_count: int,
+    drawn_count: int,
 ) -> dict[str, Any]:
     """Assemble the trace for one molecule.
 
@@ -143,6 +145,11 @@ def build(
         returned: The molecule the model returned, before sanitising.
         drawn: The same molecule after sanitising -- what actually renders.
         index: Its position in the final list, which fixes its binding paths.
+        returned_count: How many molecules the model returned.
+        drawn_count: How many survived sanitising. The traced molecule is
+            necessarily one of the survivors, so the stage that reports the
+            sanitiser cannot show a drop by looking at it -- it has to report the
+            run's totals or it implies nothing was ever discarded.
 
     Returns:
         The stages, plus the A2UI messages that draw `drawn` on its own surface.
@@ -165,6 +172,12 @@ def build(
         "returned": before,
         "repairs": repairs(before, after),
         "drawn": after,
+        # The sanitiser's two outcomes are different in kind: a repair edits a
+        # field, a drop discards the whole molecule. Reported separately because a
+        # panel that showed only repairs would read as "nothing was discarded".
+        "returned_count": returned_count,
+        "drawn_count": drawn_count,
+        "dropped_count": returned_count - drawn_count,
         # The real message writes the whole model at `/`; this is the slice of it
         # that these bindings resolve against.
         "data_path": f"/molecules/{index}",

@@ -504,6 +504,8 @@ def run_overview(document: Document) -> Iterator[Event]:
         returned=returned,
         drawn=drawn,
         index=traced,
+        returned_count=len(plan.molecules),
+        drawn_count=len(final),
     )
     for message in trace.pop("a2ui"):
         yield Event("a2ui", message)
