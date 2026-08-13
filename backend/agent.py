@@ -317,11 +317,36 @@ def _counts(molecules: list[Molecule]) -> dict[str, int]:
     }
 
 
-def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, SectionPlan]:
+class Generation(NamedTuple):
+    """A completed section generation: what came back, and what it cost."""
+
+    plan: SectionPlan
+    tokens: dict[str, int] | None
+
+
+def _tokens(completion: Any) -> dict[str, int] | None:
+    """The generation's token usage, or None if the API did not report it.
+
+    None rather than zeros: a run whose cost is unknown and a run that cost
+    nothing are different facts, and a readout showing `0 tokens` for the former
+    would be stating something false.
+    """
+    usage = getattr(completion, "usage", None)
+    if usage is None:
+        return None
+    return {
+        "prompt": usage.prompt_tokens,
+        "completion": usage.completion_tokens,
+        "total": usage.total_tokens,
+    }
+
+
+def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, Generation]:
     """Stream the model, pushing A2UI updates optimistically; return the plan.
 
     Returns:
-        The completed, validated plan, for the caller's authoritative pass.
+        The completed, validated plan and its token usage, for the caller's
+        authoritative pass and its measurement readout.
 
     Raises:
         ValueError: If the model refused, or returned nothing parseable.
@@ -333,6 +358,10 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
         messages=[{"role": "system", "content": section_prompt(document)}],
         response_format=SectionPlan,
         temperature=0.2,
+        # Without this the final completion carries `usage: None` -- the API omits
+        # it from streamed responses unless asked. The readout beside the section
+        # reports what the generation cost, so it has to be asked for.
+        stream_options={"include_usage": True},
     ) as stream:
         for event in stream:
             if event.type != "content.delta" or not event.parsed:
@@ -361,7 +390,7 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
         raise ValueError(f"model refused: {choice.message.refusal}")
     if choice.message.parsed is None:
         raise ValueError("model returned no parseable output")
-    return choice.message.parsed
+    return Generation(choice.message.parsed, _tokens(completion))
 
 
 def _usable(molecules: list[Molecule]) -> list[tuple[Molecule, Molecule]]:
@@ -457,7 +486,7 @@ def run_overview(document: Document) -> Iterator[Event]:
         return
 
     try:
-        plan = yield from _stream_section(document, clock)
+        plan, tokens = yield from _stream_section(document, clock)
     except ValidationError as exc:
         logger.warning("agent output failed validation: %s", exc)
         yield from _fallback("schema_validation_failed", clock)
@@ -520,6 +549,10 @@ def run_overview(document: Document) -> Iterator[Event]:
             "summary": plan.summary,
             "total_ms": clock.elapsed_ms(),
             "first_molecule_ms": clock.first_molecule_ms,
+            "model": MODEL,
+            # What the generation cost, for the readout beside the section. None
+            # when the API did not report usage -- unknown is not zero.
+            "tokens": tokens,
             # What the compiler wrote on the model's behalf for *this* document,
             # for the panel that weighs compiling against emitting A2UI directly.
             "directness": a2ui.directness_cost(final),
