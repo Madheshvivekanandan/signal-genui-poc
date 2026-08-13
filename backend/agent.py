@@ -503,6 +503,7 @@ def run_overview(document: Document) -> Iterator[Event]:
         model=MODEL,
         returned=returned,
         drawn=drawn,
+        molecules=final,
         index=traced,
         returned_count=len(plan.molecules),
         drawn_count=len(final),
