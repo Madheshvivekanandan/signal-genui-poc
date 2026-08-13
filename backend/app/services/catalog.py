@@ -30,9 +30,8 @@ from typing import Any, Final, Literal, Union, get_args, get_origin
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
-import a2ui
-import schemas
-from schemas import ArcBeats, Callout, MetricGrid, Molecule, PhasePlan, ScoreRow, ScoreTable
+from app import a2ui, schemas
+from app.schemas import ArcBeats, Callout, MetricGrid, Molecule, PhasePlan, ScoreRow, ScoreTable
 
 # One surface per family, so the page can draw each specimen set beside its own
 # field table instead of as one undifferentiated stack.
@@ -60,7 +59,10 @@ def _summary(model: type[BaseModel]) -> str:
     return doc.split("\n", 1)[0]
 
 
-def _type_label(annotation: Any) -> tuple[str, list[str]]:
+# `annotation` is `Any` because a type annotation is not itself a type: it may be
+# a class, a `Literal[...]`, a `list[...]` or a union, and telling them apart is
+# what these functions do.
+def _type_label(annotation: Any) -> tuple[str, list[str]]:  # noqa: ANN401
     """Render an annotation as the constraint the model has to satisfy.
 
     Returns:
@@ -131,7 +133,7 @@ def _fields_of(model: type[BaseModel]) -> list[dict[str, Any]]:
     return sorted(rows, key=lambda row: _sort_key(row["name"]))
 
 
-def _referenced_models(annotation: Any) -> list[type[BaseModel]]:
+def _referenced_models(annotation: Any) -> list[type[BaseModel]]:  # noqa: ANN401 -- as above
     """Every Pydantic model an annotation reaches, e.g. `Metric` in `list[Metric]`."""
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return [annotation]
@@ -168,7 +170,9 @@ _SPECIMENS: Final[dict[str, list[Molecule]]] = {
                     label="Recommendation", value="Pursue", sub="A verdict, in one word."
                 ),
                 schemas.Metric(
-                    label="Est. budget", value="$180-220K", sub="The money, as the document states it."
+                    label="Est. budget",
+                    value="$180-220K",
+                    sub="The money, as the document states it.",
                 ),
                 schemas.Metric(
                     label="Fit for agency", value="High", sub="Judgement, not a lookup."

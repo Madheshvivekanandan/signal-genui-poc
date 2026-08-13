@@ -8,7 +8,7 @@ on what it reads, and find out whether it lags. It is deliberately **not** a cha
 markup, never picks a colour, and never decides the page structure.
 
 The transport and the renderer are A2UI, Google's protocol for agent-generated UI. The agent
-plans in typed molecules; `backend/a2ui.py` compiles those into real `createSurface` /
+plans in typed molecules; `backend/app/a2ui.py` compiles those into real `createSurface` /
 `updateDataModel` / `updateComponents` messages, and `@a2ui/react` draws them against the
 closed catalog in `frontend/src/a2ui/catalog.jsx`. No rendering code of ours sits between a
 protocol message and the DOM.
@@ -23,9 +23,9 @@ protocol message and the DOM.
 | Variant — callout tone, score band | **Agent**, as a *meaning* (`risk`, not `.alert`). |
 | `inspect` / `signal` capability flags | **Agent.** |
 | Markup, class names, colours, grids, type scale | **Design system.** `signal.css`, untouched. |
-| Component names, layout, data binding | **A2UI.** Compiled by `backend/a2ui.py`. |
+| Component names, layout, data binding | **A2UI.** Compiled by `backend/app/a2ui.py`. |
 
-The agent's entire vocabulary is the `Molecule` union in `backend/schemas.py`. Anything outside
+The agent's entire vocabulary is the `Molecule` union in `backend/app/schemas.py`. Anything outside
 it fails validation and never reaches the browser.
 
 Note what the agent does *not* do: it never names an A2UI component and never writes a
@@ -53,7 +53,7 @@ deliberately, so a document that sets out a process reads differently from one t
 document, so the model could only invent it.
 
 Adding a sixth is exactly three edits, and they must stay in step: a Pydantic model added to
-the union in `backend/schemas.py`, a row in `_VIEW` in `backend/a2ui.py` naming the component
+the union in `backend/app/schemas.py`, a row in `_VIEW` in `backend/app/a2ui.py` naming the component
 and the fields it binds, and a component registered in `frontend/src/a2ui/catalog.jsx`. (It was
 two before A2UI; the compiler is the third.) In practice a family also wants a rule in
 `SECTION_PROMPT_BASE` saying when it is earned — without one the model will not reach for it.
@@ -122,8 +122,9 @@ Two processes. Backend first.
 # Backend
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -e '.[dev]'         # only needed to run the gates
 echo "OPENAI_API_KEY=sk-..." > .env          # gitignored
-.venv/bin/uvicorn main:app --port 8000
+.venv/bin/uvicorn app.main:app --port 8000
 
 # Frontend (separate shell)
 cd frontend
@@ -134,7 +135,7 @@ npm run dev                                   # http://localhost:5173
 If port 8000 is taken, run the backend elsewhere and point the dev proxy at it:
 
 ```bash
-.venv/bin/uvicorn main:app --port 8123
+.venv/bin/uvicorn app.main:app --port 8123
 BACKEND_URL=http://127.0.0.1:8123 npm run dev
 ```
 
@@ -152,7 +153,7 @@ docker compose up --build   # http://localhost:3000
 |---|---|---|
 | GET | `/api/health` | liveness, model, key presence, protocol, catalog id |
 | GET | `/api/documents` | the documents this build can analyse, and the default |
-| GET | `/api/catalog` | the molecule vocabulary, introspected from `schemas.py`, plus specimens |
+| GET | `/api/catalog` | the molecule vocabulary, introspected from `app/schemas.py`, plus specimens |
 | GET | `/api/rfp?document=` | the static header facts — *not* generated |
 | GET | `/api/sections/rfp-overview` | SSE: A2UI messages for the section, streamed |
 | POST | `/api/inspect` | SSE: an answer, plus A2UI messages for anything it attaches |
@@ -172,7 +173,7 @@ readout are not components and modelling them as such would mean the agent could
 ## Four documents, four compositions
 
 The POC's claim is that one catalog and one renderer produce different interfaces for
-different documents. One fixed document cannot demonstrate that, so `backend/documents.py`
+different documents. One fixed document cannot demonstrate that, so `backend/app/documents.py`
 carries four, shaped to demand different answers to "which components does this deserve?".
 Pick one from the strip above section 1 and the section re-composes.
 
@@ -233,7 +234,7 @@ that is only checkable if the vocabulary is visible.
 
 Each family arrives twice over, because a name does not tell you what a `callout` is:
 
-- **The specimen.** A real molecule, compiled by `a2ui.py` and drawn by `A2uiSurface` against the
+- **The specimen.** A real molecule, compiled by `app/a2ui.py` and drawn by `A2uiSurface` against the
   same catalog that renders the section above — the same path, the same components. It is not a
   picture of the component; it is the component. The specimen content describes the field it
   occupies, so the band explains what a band is for.
@@ -242,7 +243,7 @@ Each family arrives twice over, because a name does not tell you what a `callout
   for this page — Pydantic puts it in the JSON Schema and the JSON Schema *is* the
   `response_format`, so it is literally what the model reads.
 
-Both come from `/api/catalog`, which introspects `schemas.py` rather than restating it. Change a
+Both come from `/api/catalog`, which introspects `app/schemas.py` rather than restating it. Change a
 bound or a tone in the schema and the panel reports the new one; there is no second copy to keep
 in step.
 
@@ -412,7 +413,7 @@ Things this exercise turned up, beyond "it works":
    reconciles them here, per the annotation's stated intent.
 5. **Structured outputs rejects discriminated unions.** Pydantic emits `oneOf` for
    `Field(discriminator=...)`, and the API returns a 400. A plain union (`anyOf`) is required —
-   noted in `schemas.py` so it does not get "improved" back.
+   noted in `app/schemas.py` so it does not get "improved" back.
 6. **Prompting drives capability flags more than anything else.** The first version returned
    every molecule with `inspect=false, signal=false`, so nothing was clickable and no coral band
    appeared — the page rendered but the product didn't work. It also spent metric tiles
@@ -436,30 +437,50 @@ Things this exercise turned up, beyond "it works":
   Meridian (score table) are; Cedar and Halcyon compose alike because they are both dense,
   complete RFPs. Defensible, but with three families the shape space is small — a fourth
   family is the real lever, and the review capped it at two or three.
-- **No tests.** The highest-value targets are now `a2ui.py`'s compiler output, the catalog's
-  binding resolution, and `stream.js` frame-splitting across chunk boundaries.
+- **The frontend has no tests.** The backend does (`backend/tests/`, 145 of them). The
+  highest-value remaining targets are the catalog's binding resolution in the browser and
+  `stream.js` frame-splitting across chunk boundaries.
 - The wallpaper is a gradient stand-in; the DS export references
   `signal background clean.jpg`, which is not in the HTML file.
 
 ## Gates
 
 ```bash
+cd backend
+.venv/bin/ruff format . && .venv/bin/ruff check .      # clean
+.venv/bin/mypy                                          # strict — clean, 28 files
+.venv/bin/python -m pytest --cov=app --cov-fail-under=85    # 145 passed, 99% coverage
+
 cd frontend && npm run lint    # oxlint src — clean
 cd frontend && npm run build   # 371 kB / 108 kB gzipped, 55 kB CSS
 ```
 
-There is no TypeScript and no test framework in this project. `npm run build` succeeding means
-it compiled, not that it works — run the app.
+The backend's gates are configured in `backend/pyproject.toml`. The tests never call the
+model: the OpenAI client is faked at that one boundary (`backend/tests/fakes.py`) and
+everything below it — the sanitiser, the compiler, the routes, the fallbacks — is the real
+code.
+
+The frontend has no TypeScript and no test framework. `npm run build` succeeding means it
+compiled, not that it works — run the app.
 
 ## Layout
 
 ```
 backend/
-  schemas.py        # the agent's entire vocabulary — read this first
-  a2ui.py           # A2UI v0.9 builders + the molecule -> A2UI compiler — read this second
-  agent.py          # streaming, the two passes, prompts, fallbacks
-  main.py           # thin routes + SSE framing
-  documents.py      # the four input documents, as fixtures
+  pyproject.toml      # dependencies + the ruff / mypy / pytest gates
+  app/
+    schemas.py        # the agent's entire vocabulary — read this first
+    a2ui.py           # A2UI v0.9 builders + the molecule -> A2UI compiler — read this second
+    documents.py      # the four input documents, as fixtures
+    errors.py         # the exception hierarchy. Stdlib only, no framework
+    main.py           # the app factory: middleware, handlers, router. Nothing else
+    api/              # HTTP layer: routes.py (thin + SSE framing), schemas.py (wire
+                      # shapes), middleware.py (request id), errors.py (status codes)
+    core/             # config.py (typed settings — the only reader of the environment),
+                      # logging.py
+    services/         # agent.py (streaming, the two passes, prompts, fallbacks),
+                      # catalog.py, walkthrough.py
+  tests/              # unit + HTTP-surface tests, and the one fake (fakes.py)
 frontend/src/
   signal.css        # VENDORED design system — do not edit
   app.css           # only what the DS does not define

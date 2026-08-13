@@ -23,8 +23,8 @@ from __future__ import annotations
 import json
 from typing import Any, Final
 
-import a2ui
-from schemas import Molecule
+from app import a2ui
+from app.schemas import Molecule
 
 # The surface the final stage draws into. Its own, not the section's: the point
 # being made is that a molecule is position-independent data, and the same values
@@ -48,6 +48,19 @@ def choose(molecules: list[Molecule]) -> int:
     return 0
 
 
+# `value` is `Any` because it is one field of a molecule's dumped JSON, which is a
+# string, a bool, or a nested list of rows depending on the family.
+def _shown(value: Any) -> str:  # noqa: ANN401
+    """Render a value as the JSON a reader sees in the panel.
+
+    `ensure_ascii=False` because these strings are displayed as text, not parsed:
+    the documents cite their sections as "§4", and a walkthrough that reported the
+    model had written `"\\u00a74"` would be describing the escaping rather than
+    the molecule.
+    """
+    return json.dumps(value, ensure_ascii=False)
+
+
 def repairs(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, str]]:
     """What the sanitiser changed between the model's molecule and the drawn one.
 
@@ -60,7 +73,7 @@ def repairs(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, str
     for field, old in before.items():
         new = after.get(field)
         if new != old:
-            changed.append({"field": field, "was": json.dumps(old), "now": json.dumps(new)})
+            changed.append({"field": field, "was": _shown(old), "now": _shown(new)})
     return changed
 
 
@@ -84,7 +97,7 @@ def resolved(component: dict[str, Any], values: dict[str, Any]) -> list[dict[str
                 # Scalars read as themselves; a list of metrics or score rows has
                 # to be shown as JSON or it is not shown at all.
                 "value": value if isinstance(value, (str, bool, int, float)) else None,
-                "json": None if isinstance(value, (str, bool, int, float)) else json.dumps(value),
+                "json": None if isinstance(value, (str, bool, int, float)) else _shown(value),
             }
         )
     return rows

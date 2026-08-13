@@ -22,23 +22,27 @@ that speaks to the browser. The wire format is A2UI v0.9.
 from __future__ import annotations
 
 import logging
-import os
 import time
-from typing import Any, Generator, Iterator, Literal, NamedTuple
+from collections.abc import Generator, Iterator
+from typing import Any, Literal, NamedTuple
 from uuid import uuid4
 
 from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 from pydantic import TypeAdapter, ValidationError
 
-import a2ui
-import schemas
-import walkthrough
-from documents import Document
-from schemas import ErrorCode, InspectAnswer, Molecule, SectionPlan, Turn
+from app import a2ui, schemas
+from app.core.config import Settings
+from app.documents import Document
+from app.errors import AgentError, EmptyCompletionError, ModelRefusedError, MoleculeUnusableError
+from app.schemas import ErrorCode, InspectAnswer, Molecule, SectionPlan, Turn
+from app.services import walkthrough
 
-logger = logging.getLogger("signal.agent")
-
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+logger = logging.getLogger(__name__)
 
 _molecule_adapter: TypeAdapter[Molecule] = TypeAdapter(Molecule)
 
@@ -207,7 +211,7 @@ class Event(NamedTuple):
     """
 
     kind: Literal["a2ui", "answer", "meta", "plan", "trace"]
-    payload: dict
+    payload: dict[str, Any]
 
 
 class Clock:
@@ -247,12 +251,27 @@ class Clock:
 _client: OpenAI | None = None
 
 
-def get_client() -> OpenAI:
-    """Lazily build the OpenAI client so the app still boots without a key."""
+def get_client(settings: Settings) -> OpenAI:
+    """The shared OpenAI client, built on first use.
+
+    Lazy so the app still boots without a key, and shared so its connection pool
+    is reused across requests rather than rebuilt per stream. The key is taken
+    from settings rather than read from the environment by the SDK, so there is
+    one path by which configuration reaches this service.
+
+    Args:
+        settings: Configuration holding the API key.
+    """
     global _client
     if _client is None:
-        _client = OpenAI()  # reads OPENAI_API_KEY from the environment
+        _client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
     return _client
+
+
+def reset_client() -> None:
+    """Drop the cached client. For tests that swap the configured key."""
+    global _client
+    _client = None
 
 
 def _sanitize(molecule: Molecule) -> Molecule:
@@ -262,7 +281,7 @@ def _sanitize(molecule: Molecule) -> Molecule:
     that are structurally legal but wrong on screen.
 
     Raises:
-        ValueError: If the molecule cannot be drawn at all.
+        MoleculeUnusableError: If the molecule cannot be drawn at all.
     """
     if isinstance(molecule, schemas.Callout):
         # DS §3.2: the intel header is a label *and* an italic source line. A
@@ -273,18 +292,21 @@ def _sanitize(molecule: Molecule) -> Molecule:
         # A band needs either a bolded lead or a label to open it; a bare
         # paragraph in a banded surface reads as a styling accident.
         if not molecule.lead and not molecule.label:
-            raise ValueError("callout has neither lead nor label")
+            raise MoleculeUnusableError("callout has neither lead nor label")
 
-    if isinstance(molecule, schemas.ScoreTable):
-        # The total row reuses the row grid so the columns align; a total that
-        # does not line up with any rows is worse than no total.
-        if molecule.total is not None and not molecule.rows:
-            raise ValueError("score_table has a total but no rows")
+    # The total row reuses the row grid so the columns align; a total that does
+    # not line up with any rows is worse than no total.
+    if (
+        isinstance(molecule, schemas.ScoreTable)
+        and molecule.total is not None
+        and not molecule.rows
+    ):
+        raise MoleculeUnusableError("score_table has a total but no rows")
 
     return molecule
 
 
-def _parse_partial(raw: Any) -> Molecule | None:
+def _parse_partial(raw: Any) -> Molecule | None:  # noqa: ANN401 -- see the docstring
     """Validate one molecule out of a partially-streamed object.
 
     `raw` is `Any` because it is the SDK's partial-parse snapshot: at this point
@@ -299,7 +321,7 @@ def _parse_partial(raw: Any) -> Molecule | None:
         return None
     try:
         return _sanitize(_molecule_adapter.validate_python(raw))
-    except (ValidationError, ValueError):
+    except (ValidationError, MoleculeUnusableError):
         return None
 
 
@@ -324,7 +346,9 @@ class Generation(NamedTuple):
     tokens: dict[str, int] | None
 
 
-def _tokens(completion: Any) -> dict[str, int] | None:
+# `completion` is `Any` because the SDK types the parsed completion generically
+# and `usage` is optional on it; the shape is narrowed by `getattr` below.
+def _tokens(completion: Any) -> dict[str, int] | None:  # noqa: ANN401
     """The generation's token usage, or None if the API did not report it.
 
     None rather than zeros: a run whose cost is unknown and a run that cost
@@ -341,7 +365,9 @@ def _tokens(completion: Any) -> dict[str, int] | None:
     }
 
 
-def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, Generation]:
+def _stream_section(
+    document: Document, settings: Settings, clock: Clock
+) -> Generator[Event, None, Generation]:
     """Stream the model, pushing A2UI updates optimistically; return the plan.
 
     Returns:
@@ -349,12 +375,13 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
         authoritative pass and its measurement readout.
 
     Raises:
-        ValueError: If the model refused, or returned nothing parseable.
+        ModelRefusedError: If the model declined to answer.
+        EmptyCompletionError: If the completion carried no parseable output.
     """
     optimistic: list[Molecule] = []
 
-    with get_client().beta.chat.completions.stream(
-        model=MODEL,
+    with get_client(settings).beta.chat.completions.stream(
+        model=settings.openai_model,
         messages=[{"role": "system", "content": section_prompt(document)}],
         response_format=SectionPlan,
         temperature=0.2,
@@ -367,7 +394,14 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
             if event.type != "content.delta" or not event.parsed:
                 continue
 
-            raw = event.parsed.get("molecules")
+            # The SDK types the partial-parse snapshot as `object`, because at this
+            # point in the stream it genuinely is anything: a half-built dict, a
+            # scalar, or absent. Both checks are load-bearing narrowing, not
+            # defensive noise.
+            snapshot = event.parsed
+            if not isinstance(snapshot, dict):
+                continue
+            raw = snapshot.get("molecules")
             if not isinstance(raw, list):
                 continue
 
@@ -387,9 +421,9 @@ def _stream_section(document: Document, clock: Clock) -> Generator[Event, None, 
 
     choice = completion.choices[0]
     if choice.message.refusal:
-        raise ValueError(f"model refused: {choice.message.refusal}")
+        raise ModelRefusedError(choice.message.refusal)
     if choice.message.parsed is None:
-        raise ValueError("model returned no parseable output")
+        raise EmptyCompletionError
     return Generation(choice.message.parsed, _tokens(completion))
 
 
@@ -410,7 +444,7 @@ def _usable(molecules: list[Molecule]) -> list[tuple[Molecule, Molecule]]:
     for molecule in molecules[: schemas.MAX_MOLECULES]:
         try:
             usable.append((molecule, _sanitize(molecule)))
-        except ValueError as exc:
+        except MoleculeUnusableError as exc:
             logger.warning("dropping unusable molecule: %s", exc)
     return usable
 
@@ -471,8 +505,17 @@ def _fallback(error: ErrorCode, clock: Clock) -> Iterator[Event]:
     )
 
 
-def run_overview(document: Document) -> Iterator[Event]:
-    """Stream the analysis of one document. Never raises: every path yields a surface."""
+def run_overview(document: Document, settings: Settings) -> Iterator[Event]:
+    """Stream the analysis of one document.
+
+    Args:
+        document: The document to analyse.
+        settings: Configuration -- the model, and the key it authenticates with.
+
+    Yields:
+        A2UI frames, the diagnostic `plan` and `trace` events, and a closing
+        `meta`. Never raises: every path yields a surface.
+    """
     clock = Clock()
 
     # Opened before anything that can fail, so every path below -- success,
@@ -481,17 +524,21 @@ def run_overview(document: Document) -> Iterator[Event]:
     for message in a2ui.open_surface(a2ui.SECTION_SURFACE_ID):
         yield Event("a2ui", message)
 
-    if not os.getenv("OPENAI_API_KEY"):
+    if not settings.has_api_key:
         yield from _fallback("missing_api_key", clock)
         return
 
     try:
-        plan, tokens = yield from _stream_section(document, clock)
+        plan, tokens = yield from _stream_section(document, settings, clock)
     except ValidationError as exc:
         logger.warning("agent output failed validation: %s", exc)
         yield from _fallback("schema_validation_failed", clock)
         return
-    except Exception:  # network, auth, rate limit, refusal, anything upstream
+    except AgentError as exc:
+        logger.warning("overview generation rejected: %s", exc)
+        yield from _fallback("upstream_error", clock)
+        return
+    except Exception:  # network, auth, rate limit, anything upstream
         logger.exception("overview generation failed")
         yield from _fallback("upstream_error", clock)
         return
@@ -503,7 +550,7 @@ def run_overview(document: Document) -> Iterator[Event]:
     yield Event(
         "plan",
         {
-            "model": MODEL,
+            "model": settings.openai_model,
             "summary": plan.summary,
             "molecules": [molecule.model_dump(mode="json") for molecule in plan.molecules],
         },
@@ -529,7 +576,7 @@ def run_overview(document: Document) -> Iterator[Event]:
     trace = walkthrough.build(
         instructions=SECTION_PROMPT_BASE,
         document_text=document.for_prompt(),
-        model=MODEL,
+        model=settings.openai_model,
         returned=returned,
         drawn=drawn,
         molecules=final,
@@ -549,7 +596,7 @@ def run_overview(document: Document) -> Iterator[Event]:
             "summary": plan.summary,
             "total_ms": clock.elapsed_ms(),
             "first_molecule_ms": clock.first_molecule_ms,
-            "model": MODEL,
+            "model": settings.openai_model,
             # What the generation cost, for the readout beside the section. None
             # when the API did not report usage -- unknown is not zero.
             "tokens": tokens,
@@ -562,14 +609,22 @@ def run_overview(document: Document) -> Iterator[Event]:
 
 
 def run_inspect(
-    document: Document, question: str, subject: str, history: list[Turn]
+    document: Document,
+    settings: Settings,
+    *,
+    question: str,
+    subject: str,
+    history: list[Turn],
 ) -> Iterator[Event]:
     """Answer a review-pane question about one inspected molecule.
 
     Args:
         document: The document under analysis, so the answer is grounded in the
             same text the section was drawn from.
-        question: What the user typed.
+        settings: Configuration -- the model, and the key it authenticates with.
+        question: What the user typed. Keyword-only, because `question` and
+            `subject` are both free text and transposing them positionally would
+            produce a plausible-looking answer to the wrong question.
         subject: A short description of the molecule they clicked, so the model
             knows what "this" refers to without the client resending the tree.
         history: Prior turns in this review conversation.
@@ -580,7 +635,7 @@ def run_inspect(
     """
     clock = Clock()
 
-    if not os.getenv("OPENAI_API_KEY"):
+    if not settings.has_api_key:
         _, body = FALLBACK_COPY["missing_api_key"]
         yield Event("answer", {"answer": body, "surface_id": None})
         yield Event(
@@ -589,10 +644,19 @@ def run_inspect(
         )
         return
 
-    replayed = [{"role": turn.role, "content": turn.content} for turn in history]
+    # Built role by role rather than as one comprehension: the SDK's message
+    # params are separate TypedDicts per role, and a single `{"role": turn.role}`
+    # literal matches none of them cleanly. `Turn.role` is already a closed
+    # literal, so there is no third case to handle.
+    replayed: list[ChatCompletionMessageParam] = [
+        ChatCompletionUserMessageParam(role="user", content=turn.content)
+        if turn.role == "user"
+        else ChatCompletionAssistantMessageParam(role="assistant", content=turn.content)
+        for turn in history
+    ]
     try:
-        completion = get_client().beta.chat.completions.parse(
-            model=MODEL,
+        completion = get_client(settings).beta.chat.completions.parse(
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": inspect_prompt(document)},
                 {"role": "system", "content": f"The user is asking about: {subject}"},
@@ -604,7 +668,7 @@ def run_inspect(
         )
         parsed = completion.choices[0].message.parsed
         if parsed is None:
-            raise ValueError("model returned no parseable output")
+            raise EmptyCompletionError
     except Exception:  # network, auth, rate limit, refusal, anything upstream
         logger.exception("inspect answer failed")
         _, body = FALLBACK_COPY["upstream_error"]
