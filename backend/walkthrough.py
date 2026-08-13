@@ -128,6 +128,7 @@ def build(
     model: str,
     returned: Molecule,
     drawn: Molecule,
+    molecules: list[Molecule],
     index: int,
     returned_count: int,
     drawn_count: int,
@@ -144,6 +145,12 @@ def build(
         model: The model that answered it.
         returned: The molecule the model returned, before sanitising.
         drawn: The same molecule after sanitising -- what actually renders.
+        molecules: The whole section, so the data-model stage can show the real
+            message rather than just the traced molecule's slice of it. Sending the
+            slice made that stage look like a duplicate of the one before it: the
+            values are identical by design -- compiling adds addressing, not
+            content -- and the only way to show that honestly is to show the
+            envelope the values were put into.
         index: Its position in the final list, which fixes its binding paths.
         returned_count: How many molecules the model returned.
         drawn_count: How many survived sanitising. The traced molecule is
@@ -178,8 +185,13 @@ def build(
         "returned_count": returned_count,
         "drawn_count": drawn_count,
         "dropped_count": returned_count - drawn_count,
-        # The real message writes the whole model at `/`; this is the slice of it
-        # that these bindings resolve against.
+        # The genuine first message, whole: the section surface's entire data model
+        # written at `/`, with the traced molecule sitting at `index` inside it.
+        # Shown in full rather than sliced, so "the values crossed the wire
+        # unchanged, addressed" is visible instead of merely asserted.
+        "data_message": a2ui.update_data_model(
+            a2ui.SECTION_SURFACE_ID, "/", a2ui.data_model(molecules)
+        ),
         "data_path": f"/molecules/{index}",
         "component": component,
         "resolved": resolved(component, after),

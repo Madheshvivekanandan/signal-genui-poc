@@ -35,13 +35,23 @@ function numOf(value) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function Stage({ step, title, note, children }) {
+/**
+ * One stage.
+ *
+ * `change` states the transformation as a type signature. It is there because the
+ * first question anyone asks of a six-stage diagram is what each stage actually
+ * does to the thing passing through it — and two stages can produce
+ * byte-identical output while doing entirely different work, which is precisely
+ * the case between stages 2 and 4.
+ */
+function Stage({ step, title, change, note, children }) {
   return (
     <section className="wt-stage">
       <h4>
         <span className="insp-step">{step}</span>
         {title}
       </h4>
+      {change ? <p className="wt-change">{change}</p> : null}
       {note ? <p className="wt-note">{note}</p> : null}
       {children}
     </section>
@@ -63,6 +73,7 @@ function Prompt({ trace }) {
     <Stage
       step="1"
       title="What the model is told"
+      change="prompt text + a JSON Schema → the request"
       note="Two halves, assembled per request. Nothing below this line is generated — it is the prompt that produced the section above."
     >
       <div className="wt-prompts">
@@ -244,13 +255,20 @@ export default function Walkthrough({ trace, surfaces, isOpen, onToggle }) {
             you just watched, not written out as an example, so each stage is checkable against
             the one before it.
           </p>
+          <p className="wt-intro">
+            Each stage states what it does to the thing passing through it. Worth reading those
+            lines first: two stages here produce almost identical JSON while doing completely
+            different work, and the similarity is the system behaving correctly rather than a
+            step repeating itself.
+          </p>
 
           <Prompt trace={trace} />
 
           <Stage
             step="2"
             title="What the model returns"
-            note={`Structured output, validated against the molecule union. This is one molecule of the section; ${str(trace?.model)} produced it.`}
+            change={`JSON text → a validated ${component || 'molecule'} object, in server memory`}
+            note={`Structured output, parsed and validated against the molecule union. This is one molecule of the section; ${str(trace?.model)} produced it. Nothing has left the server yet.`}
           >
             <pre className="insp-json">{pretty(trace?.returned)}</pre>
             <p className="wt-aside">
@@ -264,6 +282,7 @@ export default function Walkthrough({ trace, surfaces, isOpen, onToggle }) {
           <Stage
             step="3"
             title="Repaired, dropped, or passed through"
+            change={`${component || 'Molecule'} → the same object, one field edited, or nothing at all`}
             note="Validation has already guaranteed the shape. What is left are the states that are structurally legal but wrong on screen — and they get one of two different treatments, which is the thing to be clear about here."
           >
             <Sanitiser trace={trace} />
@@ -284,23 +303,35 @@ export default function Walkthrough({ trace, surfaces, isOpen, onToggle }) {
 
           <Stage
             step="4"
-            title="The values go into the data model"
-            note="First A2UI message. The molecule's content is written to the surface's data model — and only its content: no markup, no component, nothing about how it looks."
+            title="The values cross the wire, addressed"
+            change={`${component || 'Molecule'} → an A2UI updateDataModel message`}
+            note="The first of the two protocol messages, shown whole. This is where the molecule stops being a server-side object and becomes addressable data inside a surface the browser owns."
           >
             <p className="insp-bind">
-              <code>updateDataModel</code> → <code>{str(trace?.data_path)}</code>
+              <code>updateDataModel</code> → the whole model at <code>/</code>, traced molecule
+              at <code>{str(trace?.data_path)}</code>
+              {/* The pane scrolls: this is the real message, all
+                  {' '}{numOf(trace?.drawn_count)} molecules of it. */}
+              <span className="insp-dim">
+                {' '}
+                — all {numOf(trace?.drawn_count)} molecules, so the pane scrolls
+              </span>
             </p>
-            <pre className="insp-json">{pretty(trace?.drawn)}</pre>
+            <pre className="insp-json wt-tall">{pretty(trace?.data_message)}</pre>
             <p className="wt-aside">
-              The real message writes the whole model at <code>/</code> in one go; this is the
-              slice of it that the bindings below resolve against.
+              Compare the values at <code>{str(trace?.data_path)}</code> against stage 2: they are
+              identical, character for character. <em>That is the stage working, not a repeat of
+              it.</em> Compiling adds an envelope, a surface id and an address — never content. If
+              a value had changed here, the compiler would be editing the agent's analysis, which
+              is exactly what it must not do.
             </p>
           </Stage>
 
           <Stage
             step="5"
             title="The component tree names no values"
-            note="Second A2UI message, and the one worth pausing on."
+            change={`the family name "${family}" → a ${component || 'component'} with ${arr(trace?.resolved).length} bindings`}
+            note="The second protocol message. Only the traced molecule's component is shown; the real message carries one of these per molecule plus the root that stacks them."
           >
             <p className="insp-bind">
               <code>updateComponents</code> → <code>{family}</code> compiled to{' '}
@@ -320,6 +351,7 @@ export default function Walkthrough({ trace, surfaces, isOpen, onToggle }) {
           <Stage
             step="6"
             title="The binder resolves, the design system draws"
+            change="message + data model → resolved props → pixels"
             note="A2UI's generic binder walks each pointer, pulls the value out of the data model, and hands the component already-resolved props. The molecule never sees a binding object."
           >
             <Resolved rows={trace?.resolved} />

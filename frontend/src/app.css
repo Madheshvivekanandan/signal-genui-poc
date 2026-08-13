@@ -693,6 +693,17 @@
   margin: 0;
 }
 
+/* The stage's transformation, as a type signature. Mono and set apart from the
+   prose, because it is the answer to "what does this step actually do" and should
+   be readable without reading the paragraph under it. */
+.wt-change {
+  margin: 0 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .wt-note {
   margin: 0 0 var(--s-3);
   max-width: 74ch;
