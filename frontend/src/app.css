@@ -629,6 +629,156 @@
   }
 }
 
+/* ── The walkthrough ───────────────────────────────────────────────────────
+   One molecule, six stages, top to bottom. Deliberately a single column even on a
+   wide screen: the inspector's two-up grid is right for comparing panes and wrong
+   for following a sequence, and the whole reason this panel exists is that the
+   order matters.
+
+   It reuses .insp-json, .insp-map, .insp-bind, .insp-step and .insp-toggle rather
+   than restyling them — the artifacts are the same artifacts, and a second visual
+   language for them would imply they were something else. */
+.walkthrough {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-inner);
+  background: rgba(255, 255, 255, 0.40);
+  overflow: hidden;
+}
+
+.wt-body {
+  padding: 0 var(--s-5) var(--s-5);
+}
+
+.wt-intro {
+  margin: 0 0 var(--s-5);
+  max-width: 74ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+.wt-intro code,
+.wt-note code,
+.wt-aside code,
+.wt-drawn-label code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+}
+
+/* The numbered rail. The line is what makes six panes read as one sequence
+   rather than as six unrelated boxes. */
+.wt-stage {
+  position: relative;
+  min-width: 0;
+  padding: 0 0 var(--s-5) var(--s-5);
+  margin-left: 10px;
+  border-left: 1px solid rgba(20, 40, 70, 0.14);
+}
+.wt-stage:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+.wt-stage h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--s-3);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* The badge straddles the rail, so the line appears to run through the numbers. */
+.wt-stage h4 .insp-step {
+  position: absolute;
+  left: -10px;
+  margin: 0;
+}
+
+.wt-note {
+  margin: 0 0 var(--s-3);
+  max-width: 74ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-sub);
+}
+
+/* The reading after each artifact — what to notice, which is the whole job of a
+   walkthrough. Set apart from the artifact so nobody mistakes commentary for
+   output. */
+.wt-aside {
+  margin: var(--s-3) 0 0;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--deep);
+  max-width: 74ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+.wt-aside em {
+  font-style: italic;
+  color: var(--text);
+}
+
+.wt-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wt-fold summary {
+  font-size: 13.5px;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.wt-fold summary span {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wt-fold[open] summary {
+  margin-bottom: 8px;
+}
+/* The prompt is long and worth scrolling through on a projector, so it keeps a
+   cap and scrolls. */
+.wt-tall {
+  max-height: 300px;
+}
+
+/* The component tree is the artifact stage 5 exists to show, and .insp-json's cap
+   cuts it off two bindings from the end — which reads as a rendering fault rather
+   than as a scroll. Uncapped: seeing every path at once is the point, and being
+   able to say "not one value in any of them" only lands if all of them are there. */
+.wt-full {
+  max-height: none;
+}
+
+.wt-clean {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: 8px;
+  background: rgba(20, 40, 70, 0.05);
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+.wt-was {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.wt-value {
+  color: var(--text-sub);
+}
+
+.wt-drawn-label {
+  margin: var(--s-5) 0 var(--s-3);
+  max-width: 74ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-sub);
+}
+/* The drawn molecule carries its own design-system surface, so this wrapper adds
+   nothing but room — a panel behind it would read as a nested card the DS never
+   specifies. */
+.wt-drawn {
+  margin: 0;
+}
+
 /* ── The protocol choice ───────────────────────────────────────────────────
    The argument for compiling molecules rather than having the model emit A2UI.
    Reference material like .catalog, sharing .insp-toggle so the two collapsible
