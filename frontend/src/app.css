@@ -629,6 +629,176 @@
   }
 }
 
+/* ── The protocol choice ───────────────────────────────────────────────────
+   The argument for compiling molecules rather than having the model emit A2UI.
+   Reference material like .catalog, sharing .insp-toggle so the two collapsible
+   panels at the foot of the page open the same way. */
+.choice {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-inner);
+  background: rgba(255, 255, 255, 0.40);
+  overflow: hidden;
+}
+
+.choice-body {
+  padding: 0 var(--s-5) var(--s-5);
+}
+
+.choice-intro {
+  margin: 0 0 var(--s-4);
+  max-width: 74ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+
+/* The measurement. Dark, like .insp-json, because it is instrumentation rather
+   than argument — the two columns below it are the argument. */
+.choice-measure {
+  padding: var(--s-4);
+  border-radius: 10px;
+  background: var(--deep);
+  color: var(--text-on-dark);
+}
+.choice-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.choice-figure strong {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.choice-figure span {
+  font-size: 13.5px;
+  color: var(--text-on-dark-sub);
+  max-width: 46ch;
+}
+
+.choice-numbers {
+  margin-top: var(--s-4);
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.choice-numbers th {
+  text-align: left;
+  padding: 5px 20px 5px 0;
+  font-weight: 400;
+  color: var(--text-on-dark-sub);
+}
+.choice-numbers td {
+  padding: 5px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.choice-caption {
+  margin: var(--s-3) 0 0;
+  max-width: 74ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-on-dark-sub);
+}
+.choice-caption code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* Both cases get equal width on purpose: an argument laid out as a main column
+   and a footnote has answered itself before it is read. */
+.choice-cases {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+.choice-case h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 var(--s-3);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.choice-case h4 em {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.choice-side {
+  margin: var(--s-3) 0 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.choice-pros,
+.choice-cons {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-sub);
+}
+.choice-pros li,
+.choice-cons li {
+  margin-bottom: 6px;
+}
+.choice-pros li::marker {
+  color: var(--positive);
+}
+.choice-cons li::marker {
+  color: var(--alert, #e5687a);
+}
+
+.choice-verdict {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid rgba(20, 40, 70, 0.12);
+}
+.choice-verdict h4 {
+  margin: 0 0 var(--s-3);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.choice-verdict p {
+  margin: 0 0 var(--s-3);
+  max-width: 74ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+.choice-verdict strong {
+  color: var(--text);
+}
+.choice-flip {
+  margin-bottom: 0 !important;
+  padding: var(--s-3) var(--s-4);
+  border-radius: 8px;
+  background: rgba(20, 40, 70, 0.05);
+}
+
+.choice-foot {
+  margin: var(--s-4) 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.choice-foot a {
+  color: var(--text-sub);
+}
+
+@media (min-width: 900px) {
+  .choice-cases {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* Visually hidden but announced. The inspect affordance and the streaming
    arrival are both purely visual otherwise. */
 .sr-only {
