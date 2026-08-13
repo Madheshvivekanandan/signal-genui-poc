@@ -26,6 +26,7 @@ v0.9 is the only version that renders natively today.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from schemas import Molecule
@@ -156,6 +157,42 @@ def component_name(molecule_type: str) -> str:
         KeyError: If the family has no view -- a `_VIEW` row was forgotten.
     """
     return _VIEW[molecule_type][0]
+
+
+def directness_cost(molecules: list[Molecule]) -> dict[str, int]:
+    """What the model would have had to write if it emitted A2UI itself.
+
+    A2UI's documented default is for the model to generate the protocol messages
+    directly. This POC does not: the model returns typed molecules and this
+    module compiles them. The argument for compiling is partly that the component
+    tree is 100% derivable from `type` -- so measure it rather than assert it.
+
+    `typed` is the JSON the model actually emits. `direct` is that same data model
+    plus the component tree it would additionally have to write, correctly, on
+    every generation. The difference between the two is exactly the compiler's
+    output.
+
+    Returns:
+        Byte counts for both, and the component and binding-path totals the model
+        is spared. Counts, not opinions -- the panel that shows this draws its own
+        conclusion.
+    """
+    components = component_tree(molecules)
+    values = json.dumps(data_model(molecules), separators=(",", ":"))
+    tree = json.dumps(components, separators=(",", ":"))
+
+    # Every `{"path": ...}` in the tree. `root`'s children are ids rather than
+    # bindings, so this counts only what a binder actually resolves.
+    bindings = sum(
+        1 for component in components for value in component.values() if isinstance(value, dict)
+    )
+
+    return {
+        "typed_bytes": len(values),
+        "direct_bytes": len(values) + len(tree),
+        "components": len(components),
+        "bindings": bindings,
+    }
 
 
 def root_component(count: int) -> dict:

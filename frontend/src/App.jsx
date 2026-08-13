@@ -4,6 +4,7 @@ import { MessageProcessor } from '@a2ui/web_core/v0_9';
 import DocumentPicker from './shell/DocumentPicker.jsx';
 import Header from './shell/Header.jsx';
 import MoleculeCatalog from './shell/MoleculeCatalog.jsx';
+import ProtocolChoice from './shell/ProtocolChoice.jsx';
 import ProtocolInspector from './shell/ProtocolInspector.jsx';
 import ReviewPane from './shell/ReviewPane.jsx';
 import Section from './shell/Section.jsx';
@@ -83,6 +84,7 @@ export default function App() {
   const [frames, setFrames] = useState([]);
   const [plan, setPlan] = useState(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isChoiceOpen, setIsChoiceOpen] = useState(false);
   const seqRef = useRef(0);
 
   const record = useCallback((channel, payload) => {
@@ -378,6 +380,15 @@ export default function App() {
         {/* Last on the page and deliberately separate: this is reference material
             about the system, not a reading of the document above it. */}
         <MoleculeCatalog catalog={catalog} surfaces={surfaces} />
+
+        {/* The architectural question the catalog above provokes: A2UI expects
+            the model to emit its messages directly, and here it does not. The
+            measurement in this panel is of the document currently on screen. */}
+        <ProtocolChoice
+          cost={meta?.directness}
+          isOpen={isChoiceOpen}
+          onToggle={() => setIsChoiceOpen((open) => !open)}
+        />
       </div>
 
       {isPaneOpen ? (
