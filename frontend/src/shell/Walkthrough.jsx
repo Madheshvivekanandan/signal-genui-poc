@@ -30,6 +30,11 @@ function pretty(value) {
   }
 }
 
+/** A count off the wire, or zero. */
+function numOf(value) {
+  return Number.isFinite(value) ? value : 0;
+}
+
 function Stage({ step, title, note, children }) {
   return (
     <section className="wt-stage">
@@ -86,43 +91,76 @@ function Prompt({ trace }) {
   );
 }
 
-/** Stage 3. What the sanitiser did — usually, and importantly, nothing. */
-function Repairs({ repairs }) {
-  const changes = arr(repairs);
-
-  if (changes.length === 0) {
-    return (
-      <p className="wt-clean">
-        Nothing to repair on this run. The molecule validated and passed through untouched.
-      </p>
-    );
-  }
+/**
+ * Stage 3. The sanitiser, whose two outcomes are different in kind.
+ *
+ * A **repair** edits one field and the molecule still renders: a `source` with no
+ * `label` above it would draw as an orphan line, so the source is cleared and the
+ * band survives. A **drop** discards the whole molecule and it never reaches the
+ * browser at all: a callout with neither `lead` nor `label` has nothing to open
+ * it, a score table with a total but no rows has nothing for the total to line up
+ * with. Presenting those as the same thing would be wrong.
+ *
+ * The drop count has to come from the run's totals, not from the traced molecule.
+ * The trace can only ever follow a survivor — a dropped molecule is not in the
+ * list to be chosen from — so reporting only what happened to this one would
+ * silently assert that nothing was discarded.
+ */
+function Sanitiser({ trace }) {
+  const changes = arr(trace?.repairs);
+  const dropped = numOf(trace?.dropped_count);
+  const returnedCount = numOf(trace?.returned_count);
 
   return (
-    <table className="insp-map">
-      <thead>
-        <tr>
-          <th>Field</th>
-          <th>Returned</th>
-          <th>Drawn</th>
-        </tr>
-      </thead>
-      <tbody>
-        {changes.map((change) => (
-          <tr key={str(change?.field)}>
-            <td>
-              <code>{str(change?.field)}</code>
-            </td>
-            <td>
-              <code className="wt-was">{str(change?.was)}</code>
-            </td>
-            <td>
-              <code>{str(change?.now)}</code>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      {changes.length === 0 ? (
+        <p className="wt-clean">
+          This molecule needed no repair — it passed through untouched.
+        </p>
+      ) : (
+        <table className="insp-map">
+          <thead>
+            <tr>
+              <th>Field repaired</th>
+              <th>Returned</th>
+              <th>Drawn</th>
+            </tr>
+          </thead>
+          <tbody>
+            {changes.map((change) => (
+              <tr key={str(change?.field)}>
+                <td>
+                  <code>{str(change?.field)}</code>
+                </td>
+                <td>
+                  <code className="wt-was">{str(change?.was)}</code>
+                </td>
+                <td>
+                  <code>{str(change?.now)}</code>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* The run's totals, because the traced molecule cannot speak for them. */}
+      <p className={dropped > 0 ? 'wt-dropped' : 'wt-clean'}>
+        {dropped > 0 ? (
+          <>
+            Across the whole run, {dropped} of the {returnedCount} molecules the model returned
+            were <strong>dropped</strong> rather than repaired — they never reached the browser.
+            One unusable molecule costs itself, not the section.
+          </>
+        ) : (
+          <>
+            And none of the {returnedCount} molecules this run returned were dropped. A drop is
+            the other outcome here, and it is not a repair: the molecule is discarded and never
+            reaches the browser.
+          </>
+        )}
+      </p>
+    </>
   );
 }
 
@@ -225,10 +263,23 @@ export default function Walkthrough({ trace, surfaces, isOpen, onToggle }) {
 
           <Stage
             step="3"
-            title="Repaired, or passed through"
-            note="Validation guarantees the shape. This stage handles the states that are structurally legal but wrong on screen — a source line with no label above it, a band with nothing to open it."
+            title="Repaired, dropped, or passed through"
+            note="Validation has already guaranteed the shape. What is left are the states that are structurally legal but wrong on screen — and they get one of two different treatments, which is the thing to be clear about here."
           >
-            <Repairs repairs={trace?.repairs} />
+            <Sanitiser trace={trace} />
+            <p className="wt-aside">
+              A <strong>repair</strong> edits one field and the molecule still draws: a{' '}
+              <code>source</code> with no <code>label</code> above it would render as an orphan
+              line, so the source is cleared and the band survives. A <strong>drop</strong>{' '}
+              discards the molecule entirely — a callout with neither <code>lead</code> nor{' '}
+              <code>label</code> has nothing to open it, a score table with a total but no rows
+              has nothing for the total to line up with. Those never reach the browser.
+            </p>
+            <p className="wt-aside">
+              Which is why the counts above are the run's and not this molecule's: the trace can
+              only follow a molecule that survived, so it is not in a position to tell you about
+              one that did not.
+            </p>
           </Stage>
 
           <Stage

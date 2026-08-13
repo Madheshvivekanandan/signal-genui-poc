@@ -757,6 +757,23 @@
   font-size: 13.5px;
   color: var(--text-sub);
 }
+/* A run that dropped something is the interesting case and must not read the same
+   as a clean one — coral, per the DS's own use of it for what needs attention. */
+.wt-dropped {
+  margin: 10px 0 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--alert);
+  border-radius: 0 8px 8px 0;
+  background: rgba(229, 104, 122, 0.08);
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+.wt-clean + .wt-clean,
+.wt-dropped + .wt-clean,
+.insp-map + .wt-clean,
+.insp-map + .wt-dropped {
+  margin-top: 10px;
+}
 .wt-was {
   color: var(--text-muted);
   text-decoration: line-through;
