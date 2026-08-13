@@ -486,6 +486,9 @@ def run_overview(document: Document) -> Iterator[Event]:
             "summary": plan.summary,
             "total_ms": clock.elapsed_ms(),
             "first_molecule_ms": clock.first_molecule_ms,
+            # What the compiler wrote on the model's behalf for *this* document,
+            # for the panel that weighs compiling against emitting A2UI directly.
+            "directness": a2ui.directness_cost(final),
             **_counts(final),
         },
     )
