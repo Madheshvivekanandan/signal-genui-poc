@@ -25,7 +25,13 @@ export default function Section({
   signalCount,
   isStreaming,
   cta,
+  aside,
 }) {
+  // The measurement rail only exists once a run has finished, so the body is a
+  // single column until then. Grid columns are switched by a class rather than
+  // left empty: an empty 200px track would indent the molecules for the whole
+  // stream and then reflow them the moment the numbers arrived.
+  const bodyClass = aside ? 'acc-body has-aside' : 'acc-body';
 
   return (
     <section className="glass" data-section={`section-${index}`}>
@@ -44,7 +50,7 @@ export default function Section({
         ) : null}
       </div>
 
-      <div className="acc-body">
+      <div className={bodyClass}>
         {/* Announced so the arrival of a generated section is not silent to a
             screen reader — the whole interaction here is visual by default. */}
         <div role="status" aria-live="polite" className="sr-only">
@@ -53,13 +59,17 @@ export default function Section({
             : `${title} ready, ${moleculeCount} components`}
         </div>
 
-        {surface ? <A2uiSurface surface={surface} /> : null}
+        <div className="acc-main">
+          {surface ? <A2uiSurface surface={surface} /> : null}
 
-        {isStreaming ? (
-          <div className="stream-hint">Composing this section…</div>
-        ) : (
-          cta ?? null
-        )}
+          {isStreaming ? (
+            <div className="stream-hint">Composing this section…</div>
+          ) : (
+            cta ?? null
+          )}
+        </div>
+
+        {aside ?? null}
       </div>
     </section>
   );

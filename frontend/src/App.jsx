@@ -7,6 +7,7 @@ import MoleculeCatalog from './shell/MoleculeCatalog.jsx';
 import ProtocolChoice from './shell/ProtocolChoice.jsx';
 import ProtocolInspector from './shell/ProtocolInspector.jsx';
 import ReviewPane from './shell/ReviewPane.jsx';
+import RunCost from './shell/RunCost.jsx';
 import Section from './shell/Section.jsx';
 import Walkthrough from './shell/Walkthrough.jsx';
 import { INSPECT_ACTION, signalCatalog } from './a2ui/catalog.jsx';
@@ -351,6 +352,11 @@ export default function App() {
   );
 
   const sectionSurface = surfaces.get(SECTION_SURFACE_ID) ?? null;
+
+  // The measurement rail exists only once a run has finished. Decided here rather
+  // than inside the rail, because an element that renders null is still a truthy
+  // prop — and Section switches its grid on that prop's presence.
+  const isMeasured = !isStreaming && meta?.total_ms != null;
   const isPaneOpen = Boolean(inspection);
 
   return (
@@ -373,6 +379,18 @@ export default function App() {
           moleculeCount={meta?.molecule_count ?? 0}
           signalCount={meta?.signal_count ?? 0}
           isStreaming={isStreaming}
+          aside={
+            // Beside the components it paid for, rather than in a panel further
+            // down: the latency and cost question is the POC's, and it reads
+            // differently next to the six components the numbers bought.
+            isMeasured ? (
+              <RunCost
+                meta={meta}
+                moleculeCount={meta?.molecule_count ?? 0}
+                isStreaming={isStreaming}
+              />
+            ) : null
+          }
           cta={
             // No literal arrow in the label: the DS puts one on `.cta-button`
             // via `::after`, and adding our own renders "→ →".

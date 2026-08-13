@@ -137,6 +137,87 @@
   color: var(--text-sub);
 }
 
+/* ── What the section cost ─────────────────────────────────────────────────
+   A measurement rail beside the generated components. The only instrumentation in
+   this build that sits inside a design-system surface, so it works hard to not
+   read as product: no surface of its own, a hairline instead of a border, muted
+   labels, tabular figures.
+
+   `.acc-body` is the DS's, and it is left alone until a run completes — the
+   `has-aside` class is what turns it into two tracks, so the molecules are not
+   indented against an empty column for the whole stream. `.acc-main` wraps what
+   was already there, so single-column stays byte-identical to before. */
+.acc-main {
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .acc-body.has-aside {
+    display: grid;
+    grid-template-columns: 1fr 172px;
+    gap: var(--s-5);
+    align-items: start;
+  }
+}
+
+.run-cost {
+  padding-left: var(--s-4);
+  border-left: 1px solid rgba(20, 40, 70, 0.14);
+}
+.run-cost dl {
+  margin: 0;
+}
+.rc-head {
+  margin: 0 0 var(--s-3);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rc-row {
+  margin-bottom: 12px;
+}
+.run-cost dt {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.run-cost dd {
+  margin: 1px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.rc-hint {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* The token block is the same kind of figure as the timings but a different
+   question, so it is separated rather than run together with them. */
+.rc-tokens {
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid rgba(20, 40, 70, 0.10);
+}
+
+.rc-unknown {
+  margin: var(--s-4) 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.rc-model {
+  margin: var(--s-4) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid rgba(20, 40, 70, 0.10);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
 /* ── The document picker ───────────────────────────────────────────────────
    Demo chrome, like .timings and .inspector. Styled as a control strip rather
    than as a design-system surface, so nobody mistakes it for part of the
