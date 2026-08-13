@@ -46,6 +46,17 @@ export default function Timings({ timings, moleculeCount }) {
             <dd>{saved} ms</dd>
           </div>
         ) : null}
+        {/* The other half of "is this viable": what the generation cost. Absent
+            when the API did not report usage, rather than shown as zero. */}
+        {timings.tokens ? (
+          <div>
+            <dt>Tokens in / out</dt>
+            <dd>
+              {timings.tokens.prompt?.toLocaleString()} /{' '}
+              {timings.tokens.completion?.toLocaleString()}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       {timings.ok === false ? (
         <p className="timings-error">
